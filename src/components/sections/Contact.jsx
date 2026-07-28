@@ -1,0 +1,258 @@
+"use client";
+import React, { useState } from "react";
+import { GradientBadge } from "@/components/ui/Badges";
+import SectionWrapper from "@/layouts/SectionWrapper";
+import { ButtonFlippedReveal } from "@/components/ui/Buttons";
+import AnimatedHeader from "@/components/ui/AnimatedHeader";
+import useSmoothScroll from "@/hooks/useSmoothScroll";
+import { addContactUs } from "@/lib/contactUsService";
+
+const ContactUs = () => {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    contactNumber: "",
+    message: "",
+  });
+  const [validationErrors, setValidationErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null); // { type: 'success' | 'error', message: string }
+
+  useSmoothScroll();
+
+  const validateField = (name, value) => {
+    switch (name) {
+      case "name":
+        if (!value.trim()) return "Name is required";
+        if (value.trim().length < 2)
+          return "Name must be at least 2 characters";
+        return "";
+
+      case "email": {
+        if (!value.trim()) return "Email is required";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value))
+          return "Please enter a valid email address";
+        return "";
+      }
+
+      case "contactNumber": {
+        if (!value) return "";
+        const phoneRegex = /^[0-9+\-()\s]{7,15}$/;
+        if (!phoneRegex.test(value))
+          return "Enter a valid phone number (7–15 chars)";
+        return "";
+      }
+
+      case "message":
+        if (!value.trim()) return "Message is required";
+        if (value.trim().length < 10)
+          return "Message must be at least 10 characters";
+        return "";
+
+      default:
+        return "";
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (validationErrors[name]) {
+      setValidationErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    const error = validateField(name, value);
+    setValidationErrors((prev) => ({ ...prev, [name]: error }));
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+
+    const newErrors = {};
+    Object.keys(formData).forEach((key) => {
+      const error = validateField(key, formData[key]);
+      if (error) newErrors[key] = error;
+    });
+
+    setValidationErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) return;
+
+    try {
+      setLoading(true);
+      setStatus(null);
+
+      await addContactUs({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        contactNumber: formData.contactNumber.trim() || undefined,
+        text: formData.message.trim(),
+      });
+
+      setFormData({ name: "", email: "", contactNumber: "", message: "" });
+      setStatus({
+        type: "success",
+        message: "Thanks! Your message has been sent.",
+      });
+    } catch (err) {
+      const msg = err?.message || "Something went wrong. Please try again.";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SectionWrapper className="bg-tint">
+      <div className="max-w-[1460px] mx-auto" id="contact">
+        {/* Section Header */}
+        <div className="flex flex-col justify-center text-center gap-6">
+          <span>
+            <GradientBadge text={"Contact Us"} />
+          </span>
+
+          <div className="w-full max-w-[90%] sm:max-w-[600px] lg:max-w-[724px] mx-auto flex flex-col justify-center gap-2">
+            <h2 className="mb-4">
+              <AnimatedHeader
+                words={[
+                  { text: "Let's", isGradient: false },
+                  { text: "Build", isGradient: false },
+                  { text: "Together", isGradient: true },
+                ]}
+                className="text-[1.5rem] sm:text-[2rem] lg:text-[2.5rem] font-semibold leading-[1.1] tracking-[-0.01em] text-primary-dark"
+              />
+            </h2>
+
+            <p className="text-[0.875rem] sm:text-[1rem] lg:text-[1.25rem] font-normal leading-[1.6] text-center text-black ">
+              Whether you&apos;re ready to digitize your cooperative or simply
+              curious about how DigiCoop works, we&apos;d love to hear from you.
+              Our team is here to answer questions, guide you through the
+              platform, and explore how we can support your cooperative&apos;s
+              journey.
+            </p>
+          </div>
+        </div>
+
+        <form
+          onSubmit={handleFormSubmit}
+          className="bg-white rounded-2xl w-full p-6 flex flex-col gap-3 max-w-[1460px] my-6"
+          style={{ boxShadow: "0px 4px 10.8px rgba(0,0,0,0.1)" }}
+        >
+          {/* Status Message */}
+          {status && (
+            <div
+              role="alert"
+              className={`px-4 py-3 rounded-md mb-4 text-sm ${
+                status.type === "success"
+                  ? "bg-green-50 border border-green-200 text-green-700"
+                  : "bg-red-50 border border-red-200 text-red-700"
+              }`}
+            >
+              {status.message}
+            </div>
+          )}
+
+          {/* Name Field */}
+          <div className="flex flex-col gap-1">
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              placeholder="Name"
+              className={`w-full border rounded-md px-4 py-6 text-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                validationErrors.name ? "border-red-500" : "border-black/10"
+              }`}
+            />
+            {validationErrors.name && (
+              <p className="text-red-500 text-sm px-1">
+                {validationErrors.name}
+              </p>
+            )}
+          </div>
+
+          {/* Email Field */}
+          <div className="flex flex-col gap-1">
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              placeholder="Email"
+              className={`w-full border rounded-md px-4 py-6 text-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                validationErrors.email ? "border-red-500" : "border-black/10"
+              }`}
+            />
+            {validationErrors.email && (
+              <p className="text-red-500 text-sm px-1">
+                {validationErrors.email}
+              </p>
+            )}
+          </div>
+
+          {/* Phone Field */}
+          <div className="flex flex-col gap-1">
+            <input
+              type="tel"
+              name="contactNumber"
+              value={formData.contactNumber}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              placeholder="Phone (optional)"
+              className={`w-full border rounded-md px-4 py-6 text-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                validationErrors.contactNumber
+                  ? "border-red-500"
+                  : "border-black/10"
+              }`}
+            />
+            {validationErrors.contactNumber && (
+              <p className="text-red-500 text-sm px-1">
+                {validationErrors.contactNumber}
+              </p>
+            )}
+          </div>
+
+          {/* Message Field */}
+          <div className="flex flex-col gap-1">
+            <textarea
+              name="message"
+              value={formData.message}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              placeholder="Your Message"
+              rows={5}
+              className={`w-full border rounded-md px-4 py-6 text-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none ${
+                validationErrors.message ? "border-red-500" : "border-black/10"
+              }`}
+            />
+            {validationErrors.message && (
+              <p className="text-red-500 text-sm px-1">
+                {validationErrors.message}
+              </p>
+            )}
+          </div>
+
+          <ButtonFlippedReveal
+            className={`bg-primary text-white rounded-2xl py-5 px-4 h-[58px] flex items-center justify-center ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            fullWidth={true}
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? "Submitting..." : "Submit"}
+          </ButtonFlippedReveal>
+        </form>
+      </div>
+    </SectionWrapper>
+  );
+};
+
+export default ContactUs;

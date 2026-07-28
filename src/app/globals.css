@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base input styling */
+input {
+  color: black;
+}
+
+textarea {
+  color: black;
+}
+
+input[type="text"]::placeholder {
+  color: #888;
+}
+
+/* Additional global styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Responsive drawer keyframe animations (used by ResponsiveDrawer) */
+@keyframes rdBackDropIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rdBackDropOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes rdDrawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes rdDrawerOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(24px) scale(0.995);
+  }
+}
+
+/* Animation helper classes for ResponsiveDrawer */
+.rd-backdrop-enter {
+  animation: rdBackDropIn 350ms ease-out forwards;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.rd-backdrop-exit {
+  animation: rdBackDropOut 350ms ease-out forwards;
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+}
+
+.rd-drawer-enter {
+  animation: rdDrawerIn 350ms ease-out forwards;
+}
+
+.rd-drawer-exit {
+  animation: rdDrawerOut 350ms ease-out forwards;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+}
+
+/* Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(92, 108, 138, 0.7),
+    rgba(71, 85, 105, 0.7)
+  );
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: all 0.2s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(100, 116, 139, 0.9),
+    rgba(71, 85, 105, 0.9)
+  );
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

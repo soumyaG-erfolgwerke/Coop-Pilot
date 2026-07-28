@@ -1,0 +1,8 @@
+const DEFAULT_TIMEZONE = "Europe/Berlin";
+const DEFAULT_LOCALE = "de-DE";
+
+const SHARE_REGISTER_FILENAME_PREFIX = "Anteilsregister_Zusammenfassung";
+const CAPITAL_SUMMARY_FILENAME_PREFIX = "Geschaeftsguthaben_Zusammenfassung";
+const CSV_DELIMITER = ";";
+
+export { CSV_DELIMITER, DEFAULT_LOCALE, DEFAULT_TIMEZONE, SHARE_REGISTER_FILENAME_PREFIX, CAPITAL_SUMMARY_FILENAME_PREFIX };
