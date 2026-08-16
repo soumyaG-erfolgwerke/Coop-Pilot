@@ -8,6 +8,7 @@ import {
 } from "@/lib/appwrite-server";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
 import { assemblyDeserialization } from "@/services/assembly/assemblySchema";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 const ALLOWED_FORMATS = new Set([
   "praesenz",
@@ -189,7 +190,7 @@ export async function GET(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch assemblies" },
+      { success: false, error: safePublicError(error, "Failed to fetch assemblies") },
       { status: 500 },
     );
   }
@@ -287,7 +288,7 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to create assembly" },
+      { success: false, error: safePublicError(error, "Failed to create assembly") },
       { status: 500 },
     );
   }
@@ -377,7 +378,7 @@ export async function PATCH(request) {
             ID.unique(),
             {
               assemblyId: assemblyId,
-              coopId: body.coopId,
+              coopId: existing.coopId,
               memberId: row.memberId,
               memberName: normalizeText(row.memberName),
               memberEmail: normalizeText(row.memberEmail),
@@ -436,7 +437,7 @@ export async function PATCH(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to update assembly" },
+      { success: false, error: safePublicError(error, "Failed to update assembly") },
       { status: 500 },
     );
   }

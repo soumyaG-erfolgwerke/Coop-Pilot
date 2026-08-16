@@ -16,21 +16,24 @@ export async function POST(request) {
     const { hostname } = request.nextUrl;
     const { email, password, captchaToken } = await request.json();
 
-    if (!email || !password) {
+    if (
+      typeof email !== "string" || !email || email.length > 254 ||
+      typeof password !== "string" || !password || password.length > 128
+    ) {
       return NextResponse.json(
         { error: "Email and password are required" },
         { status: 400 },
       );
     }
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {
@@ -53,8 +56,7 @@ export async function POST(request) {
     );
 
     if (!loginResponse.ok) {
-      const loginError = await loginResponse.json();
-      throw new Error(loginError.message || "Login failed");
+      throw new Error("INVALID_CREDENTIALS");
     }
 
     const session = await loginResponse.json();
@@ -166,17 +168,12 @@ export async function POST(request) {
     }
 
     const restrictedRoles = ["auditer", "aud_E", "aud_T", "org_admin"];
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       if (restrictedRoles.includes(fetchedRole)) {
         if (!isOrgAdmin && !isTeamMember) {
           return NextResponse.json(
             {
               error: "Invalid Access due to role restrictions. Please contact your administrator.",
-              debug: {
-                isOrgAdmin,
-                isTeamMember,
-                role: fetchedRole
-              }
             },
             { status: 401 }
           );
@@ -187,16 +184,15 @@ export async function POST(request) {
     // Set session cookie (HTTP-only for security)
     const cookieStore = await cookies();
 
-    // Store session data as JSON (includes userId and role for later retrieval)
+    // Store only the opaque provider session secret. Identity and role are
+    // resolved server-side from Appwrite on every protected request.
     const sessionData = JSON.stringify({
       cookieValue: sessionCookieValue,
-      userId: session.userId,
-      role: fetchedRole,
     });
 
     cookieStore.set("appwrite-session", sessionData, {
       httpOnly: true,
-      secure: process.env.NEXT_PUBLIC_NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
@@ -235,10 +231,9 @@ export async function POST(request) {
       logger.audit({
         eventType: "USER_LOGIN_SUCCESS",
         category: "AUTH",
-        message: `User ${email} logged in successfully`,
+        message: "User logged in successfully",
         actorId: session.userId,
         metadata: {
-          email,
           role: fetchedRole,
         },
       });
@@ -255,18 +250,14 @@ export async function POST(request) {
       logger.warn({
         eventType: "USER_LOGIN_FAILURE",
         category: "AUTH",
-        message: `Failed login attempt for user ${email || "unknown"}: ${error.message}`,
-        metadata: {
-          email: email || "unknown",
-          error: error.message,
-        },
+        message: "Failed login attempt",
       });
     } catch (logErr) {
       console.error("Failed to write login failure log:", logErr.message);
     }
 
     return NextResponse.json(
-      { error: error.message || "Login failed" },
+      { error: "Invalid email, password, or account access" },
       { status: 401 },
     );
   }

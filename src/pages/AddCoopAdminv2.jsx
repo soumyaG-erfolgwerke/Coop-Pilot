@@ -157,7 +157,7 @@ const AddCoopAdminv2 = () => {
     coopName: "",
   });
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     const fetchAuditOrgs = async () => {

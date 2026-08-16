@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createAdminClient, createPublicClient } from "@/lib/appwrite-server";
+import { appwriteFetchWithSession } from "@/lib/appwrite-server";
 import { validatePassword } from "@/helpers/passwordValidator";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // POST /api/userServices/update/password
 export async function POST(request) {
   try {
+    const session = await resolveSession();
     let body;
     try {
       body = await request.json();
@@ -17,16 +18,16 @@ export async function POST(request) {
       );
     }
 
-    let { oldPassword, newPassword, captchaToken } = body;
+    const { oldPassword, newPassword, captchaToken } = body;
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {
@@ -79,104 +80,20 @@ export async function POST(request) {
       );
     }
 
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
-
-    if (!sessionCookie?.value) {
-      return NextResponse.json(
-        { success: false, error: "Not authenticated" },
-        { status: 401 },
-      );
+    const updateRes = await appwriteFetchWithSession(session.secret, "/account/password", {
+      method: "PATCH",
+      body: JSON.stringify({ password: newP, oldPassword: oldP }),
+    });
+    if (!updateRes.ok) {
+      return NextResponse.json({ success: false, error: "Current password is incorrect or update was rejected" }, { status: 400 });
     }
-
-    let sessionData;
-    try {
-      sessionData = JSON.parse(sessionCookie.value);
-    } catch {
-      return NextResponse.json(
-        { success: false, error: "Invalid session" },
-        { status: 401 },
-      );
-    }
-
-    const { cookieValue, userId } = sessionData;
-
-    if (cookieValue) {
-      try {
-        const { appwriteFetchWithSession } =
-          await import("@/lib/appwrite-server");
-
-        const accRes = await appwriteFetchWithSession(cookieValue, "/account");
-
-        if (accRes.ok) {
-          const updateRes = await appwriteFetchWithSession(
-            cookieValue,
-            "/account/password",
-            {
-              method: "PATCH",
-              body: JSON.stringify({
-                password: newP,
-                oldPassword: oldP,
-              }),
-            },
-          );
-
-          if (!updateRes.ok) {
-            let errMsg = "Password update failed";
-            try {
-              const err = await updateRes.json();
-              errMsg = err.message || errMsg;
-            } catch {}
-
-            return NextResponse.json(
-              { success: false, error: errMsg },
-              { status: 400 },
-            );
-          }
-
-          return NextResponse.json({
-            success: true,
-            message: "Password updated",
-          });
-        }
-      } catch {}
-    }
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "Session expired. Please log in again." },
-        { status: 401 },
-      );
-    }
-
-    const { users } = createAdminClient();
-    const userInfo = await users.get(userId);
-
-    const { account: publicAccount } = createPublicClient();
-
-    try {
-      const tempSession = await publicAccount.createEmailPasswordSession(
-        userInfo.email,
-        oldP,
-      );
-
-      try {
-        await users.deleteSession(userId, tempSession.$id);
-      } catch {}
-    } catch {
-      return NextResponse.json(
-        { success: false, error: "Current password is incorrect" },
-        { status: 400 },
-      );
-    }
-
-    await users.updatePassword(userId, newP);
 
     return NextResponse.json({
       success: true,
       message: "Password updated",
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Password update error:", error);
 
     return NextResponse.json(

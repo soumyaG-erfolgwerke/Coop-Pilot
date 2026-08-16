@@ -8,6 +8,9 @@ import {
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
 import { ID } from "node-appwrite";
+import { requireAuditEditor, requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function GET(request, { params }) {
   try {
@@ -20,6 +23,7 @@ export async function GET(request, { params }) {
       COLLECTION_ID_AUDIT_HISTORY,
       auditId,
     );
+    await requireCoopAuditAccess(document.coopId);
 
     const auditorId = document.auditorId;
     let auditorRes = null;
@@ -48,6 +52,9 @@ export async function GET(request, { params }) {
       document: auditHistory,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error(error);
 
     return NextResponse.json(
@@ -83,6 +90,10 @@ export async function PATCH(request, { params }) {
       COLLECTION_ID_AUDIT_HISTORY,
       auditId
     );
+    const session = await requireAuditEditor(existingDoc.coopId);
+    if (coopId && coopId !== existingDoc.coopId) {
+      return sessionErrorResponse({ status: 403 });
+    }
 
     if (existingDoc && existingDoc.auditReportUrl && existingDoc.auditReportUrl.trim() !== "") {
       return NextResponse.json(
@@ -129,11 +140,11 @@ export async function PATCH(request, { params }) {
           COLLECTION_ID_COOP_REPORTS,
           ID.unique(),
           {
-            coopId: coopId,
+            coopId: existingDoc.coopId,
             reportName: `Audit Report - ${coopName || "Cooperative"}`,
             reportType: "AUDIT_REPORT",
             fiscalYear: Number(fiscalYear) || new Date().getFullYear(),
-            generatedBy: userEmail || "auditor@easycoop.de",
+            generatedBy: session.email,
             pdfUrl: auditReportUrl,
           }
         );
@@ -148,11 +159,14 @@ export async function PATCH(request, { params }) {
       document: stripInternalFields(document),
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Failed to patch audit history report data:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to update report data",
+        error: safePublicError(error, "Failed to update report data"),
       },
       { status: 500 }
     );

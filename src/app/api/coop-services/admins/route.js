@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite"; //!here was the issue
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_COOPERATIVES } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 const placeholderColors = [
   "2ECC71", "3498DB", "E74C3C", "9B59B6", "F1C40F", "1ABC9C", "E67E22",
@@ -11,8 +12,12 @@ const defaultDescription = "[Company Name] is a forward-thinking organization co
 // GET /api/coop-services/admins?email=... - Get coops where user is admin
 export async function GET(request) {
   try {
+    const session = await resolveSession();
     const { searchParams } = new URL(request.url);
-    const adminEmail = searchParams.get("email");
+    const requestedEmail = searchParams.get("email");
+    const adminEmail = ["superuser", "superadmin"].includes(session.role)
+      ? requestedEmail || session.email
+      : session.email;
 
     if (!adminEmail) {
       return NextResponse.json(
@@ -55,6 +60,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, coops: cooperativesWhereAdmin });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to fetch cooperatives for admin:", error);
     return NextResponse.json({ success: false, coops: [] }, { status: 500 });
   }

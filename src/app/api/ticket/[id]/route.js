@@ -6,10 +6,13 @@ import {
   COLLECTION_ID_AUDITTEAM_MEMBERS,
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireTicketAccess } from "@/lib/auth/ticket-access";
 
 // GET /api/ticket/[id] - Get ticket by ID
 export async function GET(request, { params }) {
   try {
+    const session = await resolveSession();
     const { id } = await params;
 
     if (!id) {
@@ -26,6 +29,7 @@ export async function GET(request, { params }) {
       COLLECTION_ID_TICKETS,
       id,
     );
+    await requireTicketAccess(session, ticket);
 
     // get the leadAuditor details
     let leadAuditorDetails = null;
@@ -56,6 +60,9 @@ export async function GET(request, { params }) {
       ticket: stripInternalFields(ticketWithAuditor),
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error(`Error fetching ticket:`, error);
     return NextResponse.json({ success: false, ticket: null }, { status: 500 });
   }

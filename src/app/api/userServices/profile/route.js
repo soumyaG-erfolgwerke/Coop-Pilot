@@ -7,15 +7,23 @@ import {
 } from "@/lib/appwrite-server";
 import { getKycStatus } from "@/lib/getKycStatus";
 import { maskValue } from "@/helpers/maskValue";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 
 // GET /api/userServices/profile
 export async function GET(request) {
   try {
+    const session = await resolveSession();
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
+    const requestedUserId = searchParams.get("userId");
+    const userId = requestedUserId || session.userId;
+    const elevatedRoles = new Set(["superuser", "superadmin"]);
+    if (userId !== session.userId && !elevatedRoles.has(session.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
 
-    const { account, databases } = createAdminClient();
+    const { databases } = createAdminClient();
 
     // Fetch profile
     const profilesResult = await databases.listDocuments(
@@ -79,9 +87,12 @@ export async function GET(request) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error("Error fetching profile:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }

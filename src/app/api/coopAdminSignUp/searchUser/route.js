@@ -7,7 +7,7 @@ export async function POST(request) {
   try {
     const { email } = await request.json();
 
-    if (!email) {
+    if (typeof email !== "string" || email.length > 254 || !/^\S+@\S+\.\S+$/.test(email)) {
       return NextResponse.json(
         { success: false, error: "Email is required" },
         { status: 400 }
@@ -19,7 +19,7 @@ export async function POST(request) {
     const existingProfiles = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID_PROFILE,
-      [Query.equal("contactEmail", email)]
+      [Query.equal("contactEmail", email.trim()), Query.limit(1)]
     );
 
     const exists = existingProfiles.documents.length > 0;

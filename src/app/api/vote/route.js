@@ -6,6 +6,7 @@ import {
   COLLECTION_ID_ASSEMBLY_VOTES,
 } from "@/lib/appwrite-server";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // POST - Create a new poll
 export async function POST(request) {
@@ -20,7 +21,16 @@ export async function POST(request) {
       assemblyId = "",
     } = body;
 
-    if (!coopId || !endTime || !title) {
+    const parsedEndTime = new Date(endTime);
+    if (
+      !coopId ||
+      !title ||
+      typeof title !== "string" ||
+      title.length > 300 ||
+      typeof description !== "string" ||
+      description.length > 3000 ||
+      Number.isNaN(parsedEndTime.getTime())
+    ) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -33,7 +43,7 @@ export async function POST(request) {
     const now = new Date().toISOString();
     const status = new Date(endTime) <= new Date(now) ? "closed" : "live";
 
-    const utcEndTime = new Date(endTime).toISOString();
+    const utcEndTime = parsedEndTime.toISOString();
 
     const voteData = {
       coopId,
@@ -63,9 +73,15 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, data: response });
   } catch (error) {
+    if (error?.message === "UNAUTHORIZED" || error?.message === "FORBIDDEN") {
+      return NextResponse.json(
+        { success: false, error: error.message === "FORBIDDEN" ? "Forbidden" : "Unauthorized" },
+        { status: error.message === "FORBIDDEN" ? 403 : 401 },
+      );
+    }
     console.error("Error creating poll:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 }
     );
   }

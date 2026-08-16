@@ -3,6 +3,9 @@ import { Query, ID } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_PENDINGPAYOUTS, COLLECTION_ID_COOPERATIVES, COLLECTION_ID_COOPXMEMBER, COLLECTION_ID_PROFILE, COLLECTION_ID_TRANSACTIONS_LEDGER } from "@/lib/appwrite-server";
 import { getSettingsDocumentByCoopId, deriveDefaultSettingsFromCoop } from "@/lib/helpers/_helpers";
 import { getUpdatedHistoryJson } from "@/lib/memberHistoryService";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration, requireCoopMembership, requireMemberIdentity } from "@/lib/auth/membership-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 function calculateExitDate(submissionDateStr, fiscalYearEndStr, noticePeriodDays) {
   const [sYear, sMonth, sDay] = submissionDateStr.split("-").map(Number);
@@ -33,6 +36,7 @@ function calculateExitDate(submissionDateStr, fiscalYearEndStr, noticePeriodDays
 
 export async function GET(request) {
   try {
+    const session = await resolveSession();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
     const coopId = searchParams.get("coopId");
@@ -43,6 +47,9 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+    if (coopId && !userId) await requireCoopAdministration(session, coopId);
+    else if (userId && coopId) await requireCoopMembership(session, coopId, userId);
+    else requireMemberIdentity(session, userId);
 
     const { databases } = createAdminClient();
 
@@ -140,13 +147,15 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, payouts: result });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to fetch pending payouts:", error);
-    return NextResponse.json({ success: false, payouts: [], error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, payouts: [], error: safePublicError(error)}, { status: 500 });
   }
 }
 
 export async function POST(request) {
   try {
+    const session = await resolveSession();
     const body = await request.json();
     const { userId, coopId, reason, signature } = body;
 
@@ -155,6 +164,10 @@ export async function POST(request) {
         { success: false, error: "userId, coopId, and signature are required." },
         { status: 400 }
       );
+    }
+    await requireCoopMembership(session, coopId, userId);
+    if (typeof signature !== "string" || signature.length > 5000 || (reason && (typeof reason !== "string" || reason.length > 2000))) {
+      return NextResponse.json({ success: false, error: "Invalid cancellation data" }, { status: 400 });
     }
 
     const { databases } = createAdminClient();
@@ -257,9 +270,10 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, payout: payoutDoc });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to create cancellation notice:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to submit cancellation notice." },
+      { success: false, error: safePublicError(error, "Failed to submit cancellation notice.") },
       { status: 500 }
     );
   }
@@ -267,6 +281,7 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
+    const session = await resolveSession();
     const body = await request.json();
     const { payoutId, TransactionId } = body;
 
@@ -278,6 +293,22 @@ export async function PATCH(request) {
     }
 
     const { databases } = createAdminClient();
+    const existingPayout = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PENDINGPAYOUTS, payoutId);
+    await requireCoopAdministration(session, existingPayout.coopId);
+    if (!existingPayout.isPayPending) {
+      return NextResponse.json({ success: false, error: "Payout is already finalized" }, { status: 409 });
+    }
+    if (typeof TransactionId !== "string" || TransactionId.length > 200) {
+      return NextResponse.json({ success: false, error: "Invalid transaction reference" }, { status: 400 });
+    }
+    const duplicateLedger = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_TRANSACTIONS_LEDGER,
+      [Query.equal("paymentReference", TransactionId), Query.limit(1)],
+    );
+    if (duplicateLedger.total > 0) {
+      return NextResponse.json({ success: false, error: "Transaction reference already used" }, { status: 409 });
+    }
 
     // Update PendingPayouts document to mark it paid and store TransactionId
     const updatedPayout = await databases.updateDocument(
@@ -314,9 +345,10 @@ export async function PATCH(request) {
 
     return NextResponse.json({ success: true, payout: updatedPayout });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to update payout:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to update payout." },
+      { success: false, error: safePublicError(error, "Failed to update payout.") },
       { status: 500 }
     );
   }

@@ -8,6 +8,9 @@ import {
   COLLECTION_ID_DOCUMENTS,
 } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
+import { resolveSession, sessionErrorResponse, AuthorizationError } from "@/lib/auth/session";
+import { requireCoopMembership } from "@/lib/auth/membership-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // fetch all groups of the member + shred doc in the group + shared doc with the member alone
 export async function GET(req) {
@@ -18,6 +21,7 @@ export async function GET(req) {
   const coopId = searchParams.get("coopId");
 
   try {
+    const session = await resolveSession();
     if (!userId) {
       return NextResponse.json(
         { success: false, error: "userId is required" },
@@ -31,6 +35,8 @@ export async function GET(req) {
         { status: 400 },
       );
     }
+    if (userId !== session.userId) throw new AuthorizationError();
+    await requireCoopMembership(session, coopId, userId);
 
     const membershipsRes = await databases.listDocuments(
       DATABASE_ID,
@@ -186,12 +192,13 @@ export async function GET(req) {
       direct: directDocs,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("User Groups API Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch user groups",
+        error: safePublicError(error, "Failed to fetch user groups"),
       },
       { status: 500 },
     );

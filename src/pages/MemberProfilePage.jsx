@@ -33,7 +33,7 @@ export default function MemberProfileView({coops=[]}) {
   const [captchaToken, setCaptchaToken] = useState("");
 
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
   
   const [formData, setFormData] = useState({
     salutation: "",

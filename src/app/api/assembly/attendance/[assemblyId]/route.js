@@ -5,10 +5,9 @@ import {
   DATABASE_ID,
   COLLECTION_ID_ASSEMBLY_ATTENDANCE,
 } from "@/lib/appwrite-server";
-import {
-  // ensureCoopAdminAccess,
-  getAuthenticatedProfile,
-} from "@/lib/helpers/_helpers";
+import { requireAssemblyAdmin } from "@/lib/auth/assembly-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 const { databases } = createAdminClient();
 
@@ -27,15 +26,7 @@ export async function GET(request, { params }) {
 
     // ensureCoopAdminAccess(assemblyId); // Check if user has access to this assembly's attendance data
 
-    const auth = await getAuthenticatedProfile();
-
-    // console.log("auth:", auth);
-    if (auth.role !== "coopadmin") {
-      return NextResponse.json(
-        { success: false, error: "Forbidden" },
-        { status: 403 },
-      );
-    }
+    await requireAssemblyAdmin(assemblyId);
 
     // Fetch documents with matching assemblyId
     const response = await databases.listDocuments(
@@ -57,11 +48,14 @@ export async function GET(request, { params }) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error fetching documents:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: safePublicError(error),
       },
       { status: 500 },
     );

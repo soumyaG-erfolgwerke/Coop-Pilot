@@ -19,6 +19,7 @@ import {
   COLLECTION_ID_COOPERATIVES,
   COLLECTION_ID_COOPXMEMBER,
   COLLECTION_ID_TRANSACTIONS_LEDGER,
+  COLLECTION_ID_TRANSACTION,
   createAdminClient,
   DATABASE_ID,
 } from "@/lib/appwrite-server";
@@ -39,8 +40,21 @@ export const POST = async (req) => {
     if (!session || !session.role || session.role !== "member") {
       return NextErrorJson("User unauthorized.", 403);
     }
+    if (!Number.isInteger(shares) || shares < 1 || shares > 1_000_000) {
+      return NextErrorJson("Invalid share quantity", 400);
+    }
 
     const { databases } = createAdminClient();
+    if (txId) {
+      const proposal = await databases.getDocument(DATABASE_ID, COLLECTION_ID_TRANSACTION, txId);
+      if (
+        (proposal.memberId?.$id || proposal.memberId) !== session.userId ||
+        (proposal.coopId?.$id || proposal.coopId) !== coopId ||
+        !proposal.isAdminApproved
+      ) {
+        return NextErrorJson("Approved purchase proposal not found", 403);
+      }
+    }
     const [payerMember, payeeCoop, sharePrice] = await Promise.all([
       getCoopXMemberDetails(databases, coopId, session.userId),
       getCoopAccountId(databases, coopId),
@@ -59,7 +73,7 @@ export const POST = async (req) => {
       await updateMemberCustomerId(databases, customerId, payerMember.$id);
     }
 
-    const sharePriceCents = (sharePrice ?? 0) * 100;
+    const sharePriceCents = Math.round((sharePrice ?? 0) * 100);
     const amountCents = shares * sharePriceCents;
 
     if (!amountCents || amountCents < 100) {
@@ -100,7 +114,7 @@ export const POST = async (req) => {
         success_url: `${NEXT_BASE_URL}/dashboard?tab=proposals&success=true&txId=${transactionId}`,
         cancel_url: `${NEXT_BASE_URL}/cooperate/${coopId}?canceled=true&txId=${transactionId}`,
       },
-      { stripeAccount: payeeCoop },
+      { stripeAccount: payeeCoop, idempotencyKey: `checkout-${transactionId}` },
     );
 
     const payload = {
@@ -119,8 +133,8 @@ export const POST = async (req) => {
 
     return NextResponse.json({ url: checkoutSession.url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextErrorJson(message, 500);
+    console.error("Stripe member checkout failed", err);
+    return NextErrorJson("Unable to create payment checkout", 500);
   }
 };
 
@@ -186,7 +200,7 @@ const updateMemberCustomerId = async (databases, customerId, docId) => {
 };
 
 const createTransactionRecord = async (databases, transactionId, payload) => {
-  const result = await databases.upsertDocument({
+  const result = await databases.createDocument({
     databaseId: DATABASE_ID,
     collectionId: COLLECTION_ID_TRANSACTIONS_LEDGER,
     documentId: transactionId,

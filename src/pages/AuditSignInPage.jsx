@@ -33,7 +33,7 @@ const LinkSetPasswordModal = ({ isOpen, onClose, searchParams }) => {
   const router = useRouter();
 
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   const userId = searchParams.get("userId");
   const secret = searchParams.get("secret");
@@ -206,13 +206,15 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     setEmail("");
     setError("");
     setSuccessMessage("");
+    setCaptchaToken("");
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -232,11 +234,16 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
       return;
     }
 
+    if (isDeployment && !captchaToken) {
+      setError("Please complete the CAPTCHA.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       // TODO: Update the recovery API to send this audit/admin flow back to RECOVERY_PATH.
-      const response = await createRecovery(email);
+      const response = await createRecovery(email, captchaToken);
 
       if (response.status === 200) {
         setSuccessMessage(
@@ -300,6 +307,14 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
               </div>
             )}
 
+            {isDeployment && (
+              <TrustcaptchaComponent
+                captchaToken={captchaToken}
+                onCaptchaSolved={(event) => setCaptchaToken(event.detail)}
+                onCaptchaFailed={() => setCaptchaToken("")}
+              />
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -344,7 +359,7 @@ const AuditSignInPage = () => {
     useState(false);
   const [isSetPasswordModalOpen, setIsSetPasswordModalOpen] = useState(false);
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
   
   useEffect(() => {
     setEmail("");

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { ID } from "node-appwrite";
-import { createAdminClient, DATABASE_ID, COLLECTION_ID_MAILS } from "@/lib/appwrite-server";
+import { ID, Query } from "node-appwrite";
+import { createAdminClient, DATABASE_ID, COLLECTION_ID_MAILS, COLLECTION_ID_PROFILE } from "@/lib/appwrite-server";
 import { sendEmail } from "@/utils/mailer";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // import Mailgun from "mailgun.js";
 // import FormData from "form-data";
@@ -17,23 +18,18 @@ import { sendEmail } from "@/utils/mailer";
 // POST /api/mail/send - Send mail via Mailgun and save to database
 export async function POST(request) {
   try {
-    
+    const session = await resolveSession();
     const mailData = await request.json();
     
     const {
-      senderId,
-      senderName,
-      senderEmail,
       recipientId,
-      recipientEmail,
-      recipientName,
       recipientRole,
       subject,
       body,
     } = mailData;
 
 
-    if (!senderId || !recipientId || !subject || !body) {
+    if (!recipientId || !subject || !body || subject.length > 200 || body.length > 20000) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -81,21 +77,35 @@ export async function POST(request) {
     // //     console.log(data);
 
 
-    //* nodemailer implementation
-      const sender = { name: senderName, email: senderEmail, id: senderId };
-      const recipient = { name: recipientName, email: recipientEmail, id: recipientId, role: recipientRole };
-      const mailResponse = sendEmail({ sender, recipient, subject, body });
-      
-
-    // B. Save to Appwrite Database (The "System Record")
     const { databases } = createAdminClient();
+    const recipientResult = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_PROFILE,
+      [Query.equal("userId", recipientId), Query.limit(1)],
+    );
+    const recipientProfile = recipientResult.documents[0];
+    if (!recipientProfile) {
+      return NextResponse.json({ success: false, error: "Recipient not found" }, { status: 404 });
+    }
+
+    const senderEmail = session.email;
+    const senderName = session.profile?.name || session.account?.name || senderEmail;
+    const recipientEmail = recipientProfile.contactEmail || recipientProfile.email;
+    const recipientName = recipientProfile.name || recipientEmail;
+    if (!senderEmail || !recipientEmail) {
+      return NextResponse.json({ success: false, error: "Mail identity is unavailable" }, { status: 400 });
+    }
+
+    const sender = { name: senderName, email: senderEmail, id: session.userId };
+    const recipient = { name: recipientName, email: recipientEmail, id: recipientId, role: recipientProfile.role };
+    const mailResponse = await sendEmail({ sender, recipient, subject, body });
 
     const record = await databases.createDocument(
       DATABASE_ID,
       COLLECTION_ID_MAILS,
       ID.unique(),
       {
-        senderId,
+        senderId: session.userId,
         senderEmail,
         recipientId,
         recipientEmail,
@@ -103,7 +113,7 @@ export async function POST(request) {
         recipientName,
         subject,
         body,
-        role: recipientRole,
+        role: recipientProfile.role || recipientRole || "member",
         timestamp: new Date().toISOString(),
       }
     );
@@ -114,6 +124,7 @@ export async function POST(request) {
       mailResponse,
     });
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) return sessionErrorResponse(err);
     console.error("Mail Service Error:", err);
     return NextResponse.json(
       { success: false, error: "Failed to send mail", context: err },

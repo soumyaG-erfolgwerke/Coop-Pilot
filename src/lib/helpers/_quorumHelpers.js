@@ -35,6 +35,6 @@ export async function updateQuorum(assemblyId, quorumValue, isQuorumMet) {
     return updatedQuorumDocument;
   } catch (error) {
     console.error("Error updating quorum settings:", error);
-    // throw new Error(error.message || "Failed to update quorum settings");
+    throw error;
   }
 }

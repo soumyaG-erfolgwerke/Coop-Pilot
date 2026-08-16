@@ -1,7 +1,7 @@
 // Get all members(userId, memberName, memberEmail)
-export const getAllMembers = async () => {
+export const getAllMembers = async (coopId) => {
   try {
-    const response = await fetch("/api/member/all", {
+    const response = await fetch(`/api/member/all?coopId=${encodeURIComponent(coopId)}`, {
       method: "GET",
       credentials: "include",
     });

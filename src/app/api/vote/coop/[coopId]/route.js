@@ -5,10 +5,14 @@ import {
   DATABASE_ID,
   COLLECTION_ID_ASSEMBLY_VOTES,
 } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopParticipant } from "@/lib/auth/vote-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // GET - Get all polls by coop ID
 export async function GET(request, { params }) {
   try {
+    const session = await resolveSession();
     const { coopId } = await params;
 
     if (!coopId) {
@@ -17,6 +21,7 @@ export async function GET(request, { params }) {
         { status: 400 }
       );
     }
+    await requireCoopParticipant(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -50,9 +55,12 @@ export async function GET(request, { params }) {
       data: documents.reverse(),
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error getting polls by coop ID:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 }
     );
   }

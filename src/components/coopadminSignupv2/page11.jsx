@@ -9,7 +9,7 @@ import TrustcaptchaComponent from "@/components/shared/TrustCaptchaWrapper";
 
 const Page11 = ({ formData, handleChange, errors, setFormData, setErrors, handleCaptchaChange }) => {
   const [isAvvModalOpen, setIsAvvModalOpen] = useState(false);
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   // const handleAvvAccept = () => {
   //   handleChange({

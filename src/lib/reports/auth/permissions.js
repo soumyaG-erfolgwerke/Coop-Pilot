@@ -14,7 +14,7 @@ const assertCoopAdmin = async ({ databases, coopId, userEmail }) => {
     if (error?.code === 404) {
       throw resNotFound();
     }
-    throw error();
+    throw error;
   }
 
   const admins = Array.isArray(coopDoc?.admins) ? coopDoc.admins : [];

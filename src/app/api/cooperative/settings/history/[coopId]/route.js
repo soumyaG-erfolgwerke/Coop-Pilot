@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureCoopAdminAccess, getSettingsHistory } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function GET(request, { params }) {
   try {
@@ -22,7 +23,7 @@ export async function GET(request, { params }) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch settings history" },
+      { success: false, error: safePublicError(error, "Failed to fetch settings history") },
       { status: 500 }
     );
   }

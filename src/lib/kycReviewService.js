@@ -1,42 +1,19 @@
-import { cookies } from "next/headers";
 import { Query, ID } from "node-appwrite";
 
 import {
   createAdminClient,
   DATABASE_ID,
-  COLLECTION_ID_PROFILE,
   COLLECTION_ID_KYC_APPLICATIONS,
 } from "@/lib/appwrite-server";
+import { requireRole, resolveSession } from "@/lib/auth/session";
 
 /**
  * Validates that the current user is a coopadmin.
  * @returns {Promise<string>} The admin's user ID.
  */
 export async function validateAdminRole() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("appwrite-session");
-
-  if (!sessionCookie?.value) {
-    throw new Error("Unauthorized: No session found");
-  }
-
-  const sessionData = JSON.parse(sessionCookie.value);
-  const adminUserId = sessionData.userId;
-
-  const { databases } = createAdminClient();
-
-  // Verify requester is a coopadmin
-  const adminProfile = await databases.listDocuments(
-    DATABASE_ID,
-    COLLECTION_ID_PROFILE,
-    [Query.equal("userId", adminUserId)]
-  );
-
-  if (adminProfile.documents.length === 0 || adminProfile.documents[0].role !== "coopadmin") {
-    throw new Error("Forbidden: Admin access required");
-  }
-
-  return adminUserId;
+  const session = requireRole(await resolveSession(), ["coopadmin", "superuser"]);
+  return session.userId;
 }
 
 /**

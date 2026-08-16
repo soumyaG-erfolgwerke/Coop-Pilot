@@ -2,46 +2,23 @@ import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_PROFILE } from "@/lib/appwrite-server";
 import { getKycStatus } from "@/lib/getKycStatus";
-import { cookies } from "next/headers";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { boundedText, validateStrictObject } from "@/lib/validation/strict-object";
 
 // GET /api/userServices/[userId] - Get user by ID
 export async function GET(request, { params }) {
   try {
     const { userId } = await params;
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
-    
-    if (!sessionCookie?.value) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-    
-    let sessionData;
-    try {
-      sessionData = JSON.parse(sessionCookie.value);
-    } catch {
-      const response = NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-      response.cookies.set("appwrite-session", "", {
-        expires: new Date(0),
-        path: "/",
-      });
-      return response;
-    }
-
-    const loggedInUserId = sessionData.userId;
-    const loggedInRole = sessionData.role || "";
+    const session = await resolveSession();
 
     const { databases } = await createAdminClient();
 
-    const isSelf = loggedInUserId === userId;
-    const isAdminOrAuditor = ["superadmin", "coopadmin", "auditor", "auditer", "member"].includes(loggedInRole.toLowerCase());
+    const isSelf = session.userId === userId;
+    const isPlatformAdmin = ["superadmin", "superuser"].includes(
+      (session.role || "").toLowerCase(),
+    );
 
-    if (!isSelf && !isAdminOrAuditor) {
+    if (!isSelf && !isPlatformAdmin) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -83,6 +60,9 @@ export async function GET(request, { params }) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error(`Error fetching user:`, error);
     return NextResponse.json(
       { success: false, error: "Could not fetch user" },
@@ -95,18 +75,58 @@ export async function GET(request, { params }) {
 export async function PATCH(request, { params }) {
   try {
     const { userId } = await params;
-    const { name, phone, address } = await request.json();
+    const session = await resolveSession();
+    if (session.userId !== userId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 },
+      );
+    }
+    const body = await request.json();
+    const shape = validateStrictObject(body, ["phone", "address"], { maxBytes: 4096, requireAtLeastOne: true });
+    if (!shape.ok) return NextResponse.json({ success: false, error: shape.error }, { status: 400 });
+    const phone = boundedText(body.phone, { max: 40 });
+    const address = boundedText(body.address, { max: 500 });
+    if (phone === null || address === null) {
+      return NextResponse.json({ success: false, error: "Invalid profile fields" }, { status: 422 });
+    }
+    if (phone === undefined && address === undefined) {
+      return NextResponse.json(
+        { success: false, error: "No supported profile fields supplied" },
+        { status: 422 },
+      );
+    }
     const { databases } = await createAdminClient();
+
+    const profilesResult = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_PROFILE,
+      [Query.equal("userId", session.userId), Query.limit(1)],
+    );
+    const profile = profilesResult.documents[0];
+    if (!profile) {
+      return NextResponse.json(
+        { success: false, error: "User not found" },
+        { status: 404 },
+      );
+    }
+
+    const update = {};
+    if (phone !== undefined) update.phone = phone;
+    if (address !== undefined) update.address = address;
 
     const updatedDocument = await databases.updateDocument(
       DATABASE_ID,
       COLLECTION_ID_PROFILE,
-      userId,
-      { phone, address }
+      profile.$id,
+      update,
     );
 
     return NextResponse.json({ success: true, user: updatedDocument });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error("Failed to update user profile:", error);
     return NextResponse.json(
       { success: false, error: "Could not update user profile" },

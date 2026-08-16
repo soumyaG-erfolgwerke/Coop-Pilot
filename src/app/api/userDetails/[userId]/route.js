@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_PROFILE, COLLECTION_ID_KYC_DOCUMENTS, COLLECTION_ID_KYC_APPLICATIONS } from "@/lib/appwrite-server";
 import { getKycStatus } from "@/lib/getKycStatus";
+import { resolveSession, sessionErrorResponse, AuthorizationError } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
 /**
  * Masks a string by replacing the middle part with '***'
  * @param {string} val The value to mask
@@ -21,6 +23,7 @@ const maskValue = (val) => {
 // GET /api/userDetails/[userId] - Get full user details for KYC
 export async function GET(request, { params }) {
   try {
+    const session = await resolveSession();
     const { userId } = await params;
     const { searchParams } = new URL(request.url);
     let coopId = searchParams.get("coopId");
@@ -33,6 +36,10 @@ export async function GET(request, { params }) {
         { success: false, error: "User ID is required" },
         { status: 400 }
       );
+    }
+    if (userId !== session.userId) {
+      if (!coopId) throw new AuthorizationError();
+      await requireCoopAdministration(session, coopId);
     }
 
     const { databases } = createAdminClient();
@@ -191,6 +198,7 @@ export async function GET(request, { params }) {
     });
 
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Error fetching full user details for ${params.userId}:`, error);
     return NextResponse.json(
       { success: false, error: "Could not fetch user details" },

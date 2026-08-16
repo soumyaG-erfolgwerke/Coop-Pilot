@@ -9,6 +9,8 @@ import {
   COLLECTION_ID_COOP_REGISTRY 
 } from "@/lib/appwrite-server";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { isValidCoopSignupData } from "@/lib/validation/coop-signup";
 
 // POST /api/coopAdminSignUp/create - Create new coop admin
 export async function POST(request) {
@@ -16,21 +18,25 @@ export async function POST(request) {
     const formData = await request.json();
     let isAdd = false;
 
-    const captchaToken = formData.get("captchaToken");  
+    const captchaToken = formData.captchaToken;
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {
         return NextResponse.json({ error: "Captcha failed" }, { status: 400 });
       }
+    }
+
+    if (!isValidCoopSignupData(formData)) {
+      return NextResponse.json({ success: false, error: "Invalid signup data" }, { status: 422 });
     }
 
     const { databases, users } = createAdminClient();
@@ -196,7 +202,7 @@ export async function POST(request) {
       role: "coopadmin"
     }), {
       httpOnly: true,
-      secure: process.env.NEXT_PUBLIC_NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
@@ -206,7 +212,7 @@ export async function POST(request) {
   } catch (error) {
     console.error("Admin Creation Error:", error);
     return NextResponse.json(
-      { success: false, error: error || "Could not create admin" },
+      { success: false, error: safePublicError(error, "Could not create admin") },
       { status: 500 }
     );
   }

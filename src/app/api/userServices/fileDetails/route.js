@@ -1,9 +1,11 @@
 import { COLLECTION_ID_KYC, createAdminClient, DATABASE_ID } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
 import { NextResponse } from "next/server";
+import { resolveSession, sessionErrorResponse, AuthorizationError } from "@/lib/auth/session";
 
 export async function GET(request) {
     try {
+        const session = await resolveSession();
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get("userId");
 
@@ -12,6 +14,9 @@ export async function GET(request) {
                 { error: "userId is required" },
                 { status: 400 }
             );
+        }
+        if (userId !== session.userId && !["superuser", "superadmin"].includes(session.role)) {
+            throw new AuthorizationError();
         }
 
         const { databases, users } = createAdminClient();
@@ -50,9 +55,10 @@ export async function GET(request) {
             );
 
     } catch (error) {
+        if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
         console.error("Error fetching files:", error);
         return NextResponse.json(
-            { success: false, error: error.message },
+            { success: false, error: "Could not fetch files" },
             { status: 500 }
         );
     }

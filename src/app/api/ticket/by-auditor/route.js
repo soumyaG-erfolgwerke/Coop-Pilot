@@ -7,10 +7,12 @@ import {
   COLLECTION_ID_AUDITTEAM_MEMBERS,
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // GET /api/ticket/by-auditor?auditorId=...&order=asc|desc - Get tickets by auditor
 export async function GET(request) {
   try {
+    const session = requireRole(await resolveSession(), ["superuser", "auditer", "aud_E"]);
     const { searchParams } = new URL(request.url);
     const auditorId = searchParams.get("auditorId");
     const order = searchParams.get("order") || "desc";
@@ -20,6 +22,9 @@ export async function GET(request) {
         { success: false, error: "auditorId is required" },
         { status: 400 },
       );
+    }
+    if (session.role !== "superuser" && auditorId !== session.teamMemberId) {
+      return sessionErrorResponse({ status: 403 });
     }
 
     const { databases } = createAdminClient();
@@ -69,6 +74,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, tickets: ticketsWithAuditor });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Error fetching tickets for auditor:`, error);
     return NextResponse.json({ success: false, tickets: [] }, { status: 500 });
   }

@@ -12,9 +12,10 @@ import {
 import { buildGutachtenPdf } from "@/lib/founding-audit/buildGutachten";
 import { generatePdfPayload } from "@/lib/founding-audit/compute";
 import { G7ValidationSchema } from "@/lib/founding-audit/schema";
-import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
+import { requireAuditOrgAccess, requireAuditStaff } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const updateFoundingAudit = async (databases, auditId, updateData) => {
   const result = await databases.updateDocument({
@@ -45,14 +46,8 @@ const NextErrorJson = (message, status = 500) =>
   NextResponse.json({ success: false, error: message }, { status: status });
 
 export const POST = async (req, { params }) => {
-  // ---- AuthN (session cookie) ----
-  const roles = new Set(["org_admin", "auditer", "aud_E"]);
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !roles.has(session.role)) {
-    return NextErrorJson("User must be authenticated to generate PDF.", 403);
-  }
-
   try {
+    const session = await requireAuditStaff();
     const { id: auditId } = await params;
     if (!auditId) {
       return NextErrorJson("Audit ID path parameter is required.", 400);
@@ -71,6 +66,7 @@ export const POST = async (req, { params }) => {
     const { databases, storage } = createAdminClient();
 
     const auditDoc = await getFoundingAuditById(databases, auditId);
+    await requireAuditOrgAccess(auditDoc.auditOrgId);
     const membersList = await getFoundingAuditsMembers(databases, auditId);
     const auditOrgDetails = await getAuditOrgDetails(
       databases,
@@ -123,6 +119,7 @@ export const POST = async (req, { params }) => {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     return NextErrorJson(
       `[GENERATE-GUTACHTEN] Internal Engine Error: ${error.message}`,
     );

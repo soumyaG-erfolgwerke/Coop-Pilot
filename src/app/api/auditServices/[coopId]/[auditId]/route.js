@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { ID, Query } from "node-appwrite";
 import {
   createAdminClient,
   DATABASE_ID,
-  COLLECTION_ID_COOPERATIVES,
   COLLECTION_ID_AUDIT_HISTORY,
 } from "@/lib/appwrite-server";
-import { getCurrentUserRole } from "../route";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 // GET /api/auditServices/[coopId]/[auditId] - Get audit data for a cooperative
 export async function GET(request, { params }) {
   try {
     const { coopId, auditId } = await params;
+    await requireCoopAuditAccess(coopId);
 
     if (!coopId) {
       return NextResponse.json(
@@ -34,6 +34,9 @@ export async function GET(request, { params }) {
       COLLECTION_ID_AUDIT_HISTORY,
       auditId,
     );
+    if (auditDoc.coopId !== coopId) {
+      return NextResponse.json({ success: false, error: "Audit not found" }, { status: 404 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -41,6 +44,7 @@ export async function GET(request, { params }) {
       auditStatus: auditDoc.status,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to get audit data:`, error);
     return NextResponse.json(
       { success: false, error: "Could not fetch audit data" },

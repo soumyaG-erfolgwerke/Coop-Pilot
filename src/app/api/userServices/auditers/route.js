@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_PROFILE } from "@/lib/appwrite-server";
+import { resolveSession, requireRole, sessionErrorResponse } from "@/lib/auth/session";
 
 // GET /api/userServices/auditers - Get all auditers
 // Query params: ?type=all|employee|trainee
 export async function GET(request) {
   try {
+    const session = await resolveSession();
+    requireRole(session, ["coopadmin", "auditer", "aud_E", "org_admin", "superuser", "superadmin"]);
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "all";
     
@@ -36,6 +39,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, auditers });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error in getAllAuditersService:", error);
     return NextResponse.json(
       { success: false, error: "Could not fetch auditors" },

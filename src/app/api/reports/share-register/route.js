@@ -110,8 +110,11 @@ export async function GET(req) {
 
     return NextResponse.json({ success: true, report });
   } catch (error) {
-    if (error instanceof NextResponse) {
-      return error;
-    }
+    if (error instanceof Response) return error;
+    console.error("Share register generation failed", { code: error?.code, type: error?.type });
+    return NextResponse.json(
+      { success: false, error: "Could not generate share register" },
+      { status: 500 },
+    );
   }
 }

@@ -6,11 +6,18 @@ import {
   COLLECTION_ID_TICKETS,
   COLLECTION_ID_AUDITTEAM_MEMBERS,
 } from "@/lib/appwrite-server";
-import { getCoopById, stripInternalFields } from "@/lib/helpers/_helpers";
+import { ensureCoopAdminAccess, getCoopById, stripInternalFields } from "@/lib/helpers/_helpers";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // GET /api/ticket/by-coop?forCoop=...&order=asc|desc - Get tickets by coop
 export async function GET(request) {
   try {
+    const session = requireRole(await resolveSession(), [
+      "superuser",
+      "coopadmin",
+      "auditer",
+      "aud_E",
+    ]);
     const { searchParams } = new URL(request.url);
     const forCoop = searchParams.get("forCoop");
     const order = searchParams.get("order") || "asc";
@@ -21,10 +28,17 @@ export async function GET(request) {
         { status: 400 },
       );
     }
+    if (session.role === "coopadmin") await ensureCoopAdminAccess(forCoop);
 
     const { databases } = createAdminClient();
 
     const coopData = await getCoopById(forCoop);
+    if (["auditer", "aud_E"].includes(session.role)) {
+      const auditOrgId = coopData?.auditOrgId?.$id || coopData?.auditOrgId;
+      if (!auditOrgId || auditOrgId !== session.auditOrgId) {
+        return sessionErrorResponse({ status: 403 });
+      }
+    }
     const currentAuditId = coopData?.currentAuditId;
 
     const queries = [
@@ -76,6 +90,9 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, tickets: ticketsWithAuditor });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error(`Error fetching tickets for coop:`, error);
     return NextResponse.json({ success: false, tickets: [] }, { status: 500 });
   }

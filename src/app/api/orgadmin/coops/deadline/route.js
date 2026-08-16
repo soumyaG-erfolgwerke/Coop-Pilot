@@ -48,8 +48,8 @@ export async function GET(request) {
 
     // pagination for coops
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page")) || 1;
-    const limit = parseInt(searchParams.get("limit")) || 10;
+    const page = Math.max(1, parseInt(searchParams.get("page")) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit")) || 10));
     const offset = (page - 1) * limit;
 
     const coopResponse = await databases.listDocuments(
@@ -168,6 +168,10 @@ export async function PATCH(request) {
         { status: 400 },
       );
     }
+    const parsedDeadline = new Date(deadline);
+    if (Number.isNaN(parsedDeadline.getTime()) || parsedDeadline <= new Date()) {
+      return NextResponse.json({ success: false, error: "Deadline must be a valid future date" }, { status: 400 });
+    }
 
     // Check if the audit belongs to a coop under this org admin's audit organization
     const auditHistoryResponse = await databases.getDocument(
@@ -240,7 +244,7 @@ export async function PATCH(request) {
       DATABASE_ID,
       COLLECTION_ID_AUDIT_HISTORY,
       auditId,
-      { deadline },
+      { deadline: parsedDeadline.toISOString() },
     );
 
     // Create Audit Log note

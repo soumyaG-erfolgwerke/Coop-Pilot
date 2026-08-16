@@ -3,6 +3,7 @@ import { connectToDatabase } from '../../db/mongoose.js';
 import SystemLog from '../../models/SystemLog.model.js';
 import AuditLog from '../../models/AuditLog.model.js';
 import AnalyticsLog from '../../models/AnalyticsLog.model.js';
+import { redactLogValue } from '../redaction.js';
 
 /**
  * MongoTransport — Custom Winston Transport
@@ -36,7 +37,7 @@ export class MongoTransport extends Transport {
       const Model = this._resolveModel(info.logTarget);
 
       // Build the MongoDB document from Winston's log info
-      const doc = {
+      const doc = redactLogValue({
         timestamp:   info.timestamp   || new Date(),
         eventType:   info.eventType   || 'GENERIC',
         category:    info.category    || 'SYSTEM',
@@ -49,16 +50,16 @@ export class MongoTransport extends Transport {
         metadata:    info.metadata    || null,
         requestId:   info.requestId   || null,
         sessionId:   info.sessionId   || null,
-        environment: info.environment || process.env.NEXT_PUBLIC_NODE_ENV || 'development',
-      };
+        environment: info.environment || process.env.NODE_ENV || 'development',
+      });
 
       // Await database write to prevent serverless execution context freeze before logging completes
       await Model.create(doc).catch((err) => {
-        console.error('[MongoTransport] Write failed:', err.message);
+        console.error('[MongoTransport] Write failed:', redactLogValue(err));
       });
 
     } catch (err) {
-      console.error('[MongoTransport] Critical failure:', err.message);
+      console.error('[MongoTransport] Critical failure:', redactLogValue(err));
     }
 
     // Always call callback — even on error — so Winston pipeline keeps flowing

@@ -1,7 +1,8 @@
 import winston from 'winston';
-import { headers, cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { consoleTransport } from './transports/console.transport.js';
 import { MongoTransport } from './transports/mongo.transport.js';
+import { redactLogValue } from './redaction.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES (JSDoc for IDE intellisense)
@@ -28,7 +29,7 @@ import { MongoTransport } from './transports/mongo.transport.js';
 // ENVIRONMENT DETECTION
 // ─────────────────────────────────────────────────────────────────────────────
 
-const IS_PRODUCTION = process.env.NEXT_PUBLIC_NODE_ENV === 'production' || process.env.FORCE_MONGO_LOGGING === 'true';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.FORCE_MONGO_LOGGING === 'true';
 export const IS_SERVERLESS =
   (process.env.VERCEL && process.env.VERCEL !== 'false') ||
   !!process.env.AWS_LAMBDA_FUNCTION_NAME ||
@@ -41,7 +42,7 @@ export const IS_SERVERLESS =
 const winstonLogger = winston.createLogger({
   level: 'info',
   defaultMeta: {
-    environment: process.env.NEXT_PUBLIC_NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || 'development',
     source: 'nextjs-server',
   },
   transports: IS_PRODUCTION
@@ -78,20 +79,8 @@ async function getTraceId() {
  * @returns {Promise<{actorId: string|null, sessionId: string|null}>}
  */
 async function getSessionContext() {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('appwrite-session');
-    if (sessionCookie?.value) {
-      const decodedValue = decodeURIComponent(sessionCookie.value);
-      const sessionData = JSON.parse(decodedValue);
-      return {
-        actorId: sessionData.userId || null,
-        sessionId: sessionData.cookieValue || sessionData.secret || null,
-      };
-    }
-  } catch {
-    // Ignore errors when executing outside of a request context
-  }
+  // Actor identity must be passed by authenticated route code. Never trust
+  // client-controlled cookie fields and never copy a session secret into logs.
   return { actorId: null, sessionId: null };
 }
 
@@ -105,11 +94,12 @@ async function getSessionContext() {
  */
 async function writeLog(logTarget, severity, payload) {
   try {
-    const resolvedRequestId = payload.requestId || await getTraceId();
+    const safePayload = redactLogValue(payload);
+    const resolvedRequestId = safePayload.requestId || await getTraceId();
 
     // Auto-resolve session data if not explicitly provided in the payload
-    let resolvedActorId = payload.actorId || null;
-    let resolvedSessionId = payload.sessionId || null;
+    let resolvedActorId = safePayload.actorId || null;
+    let resolvedSessionId = safePayload.sessionId || null;
 
     if (!resolvedActorId || !resolvedSessionId) {
       const sessionCtx = await getSessionContext();
@@ -121,15 +111,15 @@ async function writeLog(logTarget, severity, payload) {
     const winstonLevel = severity === 'CRITICAL' ? 'error' : severity.toLowerCase();
 
     const logPromise = new Promise((resolve) => {
-      winstonLogger.log(winstonLevel, payload.message, {
+      winstonLogger.log(winstonLevel, safePayload.message, {
         logTarget,
         severity,
-        eventType: payload.eventType,
-        category: payload.category,
+        eventType: safePayload.eventType,
+        category: safePayload.category,
         actorId: resolvedActorId,
-        entityType: payload.entityType ?? null,
-        entityId: payload.entityId ?? null,
-        metadata: payload.metadata ?? null,
+        entityType: safePayload.entityType ?? null,
+        entityId: safePayload.entityId ?? null,
+        metadata: safePayload.metadata ?? null,
         requestId: resolvedRequestId ?? null,
         sessionId: resolvedSessionId,
         timestamp: new Date(),
@@ -147,7 +137,7 @@ async function writeLog(logTarget, severity, payload) {
 
     const timeoutPromise = new Promise((resolve) => {
       setTimeout(() => {
-        //! console.warn(`[Logger] Logging call timed out after 800ms for eventType: ${payload.eventType}`);
+        //! console.warn(`[Logger] Logging call timed out after 800ms for eventType: ${safePayload.eventType}`);
         resolve();
       }, 800);
     });

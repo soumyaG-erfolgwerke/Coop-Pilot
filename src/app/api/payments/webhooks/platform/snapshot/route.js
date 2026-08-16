@@ -15,6 +15,7 @@ import {
 } from "@/lib/appwrite-server";
 import { stripe } from "@/lib/stripe/client";
 import { NextResponse } from "next/server";
+import { claimWebhookEvent, completeWebhookEvent, failWebhookEvent } from "@/lib/payments/webhook-idempotency";
 
 const NextErrorJson = (message, status = 500) =>
   NextResponse.json({ success: false, error: message }, { status });
@@ -67,7 +68,10 @@ export const POST = async (req) => {
   };
 
   const { databases } = createAdminClient();
+  const claim = await claimWebhookEvent(databases, event, "platform-snapshot");
+  if (!claim.process) return NextResponse.json({ received: true, duplicate: true, reason: claim.reason });
 
+  try {
   switch (event.type) {
     case "customer.subscription.created": {
       const payload = {
@@ -115,6 +119,12 @@ export const POST = async (req) => {
 
       break;
     }
+  }
+  await completeWebhookEvent(databases, event.id);
+  } catch (error) {
+    await failWebhookEvent(databases, event.id, error);
+    console.error("[WEBHOOK-SNAPSHOT] Processing failed", error);
+    return NextErrorJson("Webhook processing failed", 500);
   }
 
   return NextResponse.json({ received: true });

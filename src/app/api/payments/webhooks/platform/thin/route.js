@@ -15,6 +15,7 @@ import {
 } from "@/lib/appwrite-server";
 import { stripe } from "@/lib/stripe/client";
 import { NextResponse } from "next/server";
+import { claimWebhookEvent, completeWebhookEvent, failWebhookEvent } from "@/lib/payments/webhook-idempotency";
 
 export const POST = async (req) => {
   const body = await req.text();
@@ -33,6 +34,11 @@ export const POST = async (req) => {
     return NextErrorJson(message, 400);
   }
 
+  const { databases } = createAdminClient();
+  const claim = await claimWebhookEvent(databases, event, "platform-thin");
+  if (!claim.process) return NextResponse.json({ received: true, duplicate: true, reason: claim.reason });
+
+  try {
   switch (event.type) {
     case "v2.core.account[requirements].updated": {
       const accountId = event.related_object?.id;
@@ -59,13 +65,18 @@ export const POST = async (req) => {
         break;
       }
 
-      const { databases } = createAdminClient();
       await updatePaymentCredentials(databases, coopId, capStatus);
       break;
     }
 
     default:
       console.error(`[WEBHOOK-THIN] Unhandled Event: ${event.type}`);
+  }
+  await completeWebhookEvent(databases, event.id);
+  } catch (error) {
+    await failWebhookEvent(databases, event.id, error);
+    console.error("[WEBHOOK-THIN] Processing failed", error);
+    return NextErrorJson("Webhook processing failed", 500);
   }
 
   return NextResponse.json({ received: true });

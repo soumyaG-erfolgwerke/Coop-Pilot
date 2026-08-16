@@ -8,6 +8,9 @@ import {
 } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
 import { getMembersOfCoopInternal } from "@/lib/memberService";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // fetch members for a group
 export async function GET(req) {
@@ -17,6 +20,7 @@ export async function GET(req) {
   const groupId = searchParams.get("groupId");
 
   try {
+    const session = await resolveSession();
     if (!groupId) {
       return NextResponse.json(
         { success: false, error: "groupId is required" },
@@ -37,6 +41,7 @@ export async function GET(req) {
         { status: 404 },
       );
     }
+    await requireCoopAdministration(session, group.coopId);
 
     if (group.isAllMembers) {
       const members = await getMembersOfCoopInternal(group.coopId);
@@ -100,12 +105,13 @@ export async function GET(req) {
       members: formatted,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Group Members API Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch group members",
+        error: safePublicError(error, "Failed to fetch group members"),
       },
       { status: 500 },
     );

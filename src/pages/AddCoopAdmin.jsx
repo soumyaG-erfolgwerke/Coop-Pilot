@@ -125,7 +125,7 @@ const AddCoopAdmin = () => {
   const [submissionStatus, setSubmissionStatus] = useState(null);
   const continueBtnRef = useRef(null);
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     const handleKeyPress = (e) => {

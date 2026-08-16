@@ -75,7 +75,7 @@ export default function ProfileUpdateForm() {
 
   const [docId, setDocId] = useState("");
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
 
   const isOnline = useNetworkStatus();

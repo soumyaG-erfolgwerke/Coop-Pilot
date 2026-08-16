@@ -7,6 +7,9 @@ import {
   COLLECTION_ID_ASSEMBLY_ATTENDANCE,
 } from "@/lib/appwrite-server";
 import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
+import { requireAssemblyAdmin } from "@/lib/auth/assembly-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 const { databases } = createAdminClient();
 
@@ -76,7 +79,12 @@ const buildAttendanceSummary = (attendanceDocs) =>
 // GET handler for fetching by assemblyId
 export async function GET(request, { params }) {
   try {
-    const { assemblyId } = await params;
+    const resolvedParams = await params;
+    const assemblyId = resolvedParams?.assemblyId || new URL(request.url).searchParams.get("assemblyId");
+    if (!assemblyId) {
+      return NextResponse.json({ success: false, error: "assemblyId is required" }, { status: 400 });
+    }
+    await requireAssemblyAdmin(assemblyId);
 
     // Fetch documents with matching assemblyId
     const response = await databases.listDocuments(
@@ -94,11 +102,14 @@ export async function GET(request, { params }) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error fetching documents:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: safePublicError(error),
       },
       { status: 500 },
     );
@@ -226,7 +237,7 @@ export async function PATCH(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to mark attendance" },
+      { success: false, error: safePublicError(error, "Failed to mark attendance") },
       { status: 500 },
     );
   }

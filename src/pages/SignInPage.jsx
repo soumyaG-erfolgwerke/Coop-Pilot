@@ -535,6 +535,14 @@ const EnterOTPModal = ({ isOpen, onClose, email }) => {
               </div>
             )}
 
+            {isDeployment && (
+              <TrustcaptchaComponent
+                captchaToken={captchaToken}
+                onCaptchaSolved={(event) => setCaptchaToken(event.detail)}
+                onCaptchaFailed={() => setCaptchaToken("")}
+              />
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -568,12 +576,15 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     if (isOpen) {
       setEmail("");
       setError("");
       setSuccessMessage("");
+      setCaptchaToken("");
     }
   }, [isOpen]);
 
@@ -591,10 +602,15 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
       return;
     }
 
+    if (isDeployment && !captchaToken) {
+      setError(language === "de" ? "Bitte bestÃ¤tigen Sie das CAPTCHA." : "Please complete the CAPTCHA.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const response = await createRecovery(email);
+      const response = await createRecovery(email, captchaToken);
 
       if (response.status === 200) {
         setSuccessMessage(
@@ -709,11 +725,14 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [sentEmail, setSentEmail] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     if (isOpen) {
       setEmail("");
       setError("");
+      setCaptchaToken("");
     }
   }, [isOpen]);
 
@@ -729,6 +748,10 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
       setError(language === "de" ? "Bitte geben Sie eine gültige E-Mail-Adresse ein." : "Please enter a valid email address.");
       return;
     }
+    if (isDeployment && !captchaToken) {
+      setError(language === "de" ? "Bitte lÃ¶sen Sie das CAPTCHA." : "Please complete the CAPTCHA.");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -736,7 +759,7 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
       const response = await fetch("/api/forget-password/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, captchaToken }),
       });
 
       const data = await response.json();
@@ -747,6 +770,7 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
         onClose();
         setShowOTPModal(true);
       } else {
+        setCaptchaToken("");
         toast.error(data.error || (language === "de" ? "Fehler beim Senden des OTP." : "Failed to send OTP."));
         setError(data.error || (language === "de" ? "Fehler beim Senden des OTP." : "Failed to send OTP."));
       }
@@ -808,6 +832,14 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
               </div>
             )}
 
+            {isDeployment && (
+              <TrustcaptchaComponent
+                captchaToken={captchaToken}
+                onCaptchaSolved={(event) => setCaptchaToken(event.detail)}
+                onCaptchaFailed={() => setCaptchaToken("")}
+              />
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -841,7 +873,7 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     if (isOpen) {

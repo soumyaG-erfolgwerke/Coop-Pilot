@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, DATABASE_ID } from "@/lib/appwrite-server";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
 
 const COLLECTION_ID_COOPERATIVES = "683f21190030cfd38fce";
 
@@ -11,6 +14,9 @@ export async function GET(request, { params }) {
     if (!coopId) {
       return NextResponse.json({ error: "Cooperative ID is required" }, { status: 400 });
     }
+    const session = await resolveSession();
+    if (["org_admin", "auditer", "aud_E", "aud_T"].includes(session.role)) await requireCoopAuditAccess(coopId);
+    else await requireCoopAdministration(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -25,9 +31,10 @@ export async function GET(request, { params }) {
 
     return NextResponse.json({ auditorIds });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to get auditor IDs:`, error);
     return NextResponse.json(
-      { error: error.message || "Failed to get auditor IDs" },
+      { error: "Failed to get auditor IDs" },
       { status: 500 }
     );
   }
@@ -42,8 +49,9 @@ export async function PATCH(request, { params }) {
     if (!coopId) {
       return NextResponse.json({ error: "Cooperative ID is required" }, { status: 400 });
     }
+    requireRole(await resolveSession(), ["superuser", "superadmin"]);
 
-    if (!Array.isArray(auditorIds)) {
+    if (!Array.isArray(auditorIds) || auditorIds.length > 100 || auditorIds.some((id) => typeof id !== "string" || id.length > 100)) {
       return NextResponse.json({ error: "auditorIds must be an array" }, { status: 400 });
     }
 
@@ -58,9 +66,10 @@ export async function PATCH(request, { params }) {
 
     return NextResponse.json(updatedDocument);
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to assign auditors:`, error);
     return NextResponse.json(
-      { error: error.message || "Failed to assign auditors" },
+      { error: "Failed to assign auditors" },
       { status: 500 }
     );
   }

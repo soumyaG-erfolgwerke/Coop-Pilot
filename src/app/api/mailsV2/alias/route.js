@@ -6,6 +6,8 @@ import {
     COLLECTION_ID_MAIL_DIRECTORY,
 } from "@/lib/appwrite-server";
 import { ID } from "node-appwrite";
+import { encryptMailCredential } from "@/lib/mailCredentialCrypto";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function POST(request) {
     try {
@@ -162,7 +164,7 @@ export async function POST(request) {
                     accEmail: accEmail,
                     email: email,
                     aliasEmail: fullAlias,
-                    password: password,
+                    password: encryptMailCredential(password),
                     name: name,
                 }
             );
@@ -189,7 +191,7 @@ export async function POST(request) {
 
     } catch (error) {
         return NextResponse.json(
-            { success: false, error: error.message || "Failed to set mail up" },
+            { success: false, error: safePublicError(error, "Failed to set mail up") },
             { status: 500 },
         );
     }

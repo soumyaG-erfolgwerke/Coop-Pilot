@@ -29,7 +29,7 @@ const phoneCountryOptions = [
 ];
 
 const Page1 = ({ formData, handleChange, handleBlur, errors, handleCaptchaChange }) => {
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
   
   const formRows = [
     [

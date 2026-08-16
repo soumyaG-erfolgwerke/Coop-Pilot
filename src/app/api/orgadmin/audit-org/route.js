@@ -5,14 +5,12 @@ import {
   DATABASE_ID,
   COLLECTION_ID_AUDIT_ORGS,
 } from "@/lib/appwrite-server";
-import {
-  getAuthenticatedProfile,
-  stripInternalFields,
-} from "@/lib/helpers/_helpers";
+import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET() {
   try {
-    const auth = await getAuthenticatedProfile();
+    const auth = await resolveSession();
     if (auth.role !== "org_admin") {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
@@ -33,12 +31,13 @@ export async function GET() {
       auditOrg: stripInternalFields(response.documents[0]),
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch audit organization",
+        error: "Failed to fetch audit organization",
       },
       {
         status: 500,

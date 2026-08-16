@@ -136,6 +136,7 @@ export async function GET(request) {
 
   let limit = parseInt(request.nextUrl.searchParams.get("limit") || "10", 10);
   if (isNaN(limit) || limit < 1) limit = 10;
+  limit = Math.min(limit, 100);
 
   const offset = (page - 1) * limit;
 

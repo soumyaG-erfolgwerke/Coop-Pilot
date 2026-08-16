@@ -5,6 +5,10 @@ import {
   AUDIT_BUCKET_ID 
 } from "@/lib/appwrite-server";
 import { ID } from "node-appwrite";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
+import { InputFile } from "node-appwrite/file";
+import { requireExpectedFileSignature } from "@/lib/files/file-signature";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
 
 /**
  * Service to handle KYC document uploads to Appwrite Storage and Database.
@@ -33,6 +37,10 @@ export async function uploadKycDocument(userId, file, documentType, rollback = n
     throw new Error("File too large. Maximum size is 5MB.");
   }
 
+  const buffer = Buffer.from(await file.arrayBuffer());
+  requireExpectedFileSignature(buffer, file.type);
+  await assertMalwareFree(buffer);
+
   const { databases, storage } = createAdminClient();
 
   // 1. Upload the file to Appwrite Storage
@@ -40,7 +48,7 @@ export async function uploadKycDocument(userId, file, documentType, rollback = n
   const uploadedFile = await storage.createFile(
     AUDIT_BUCKET_ID,
     fileId,
-    file
+    InputFile.fromBuffer(buffer, file.name)
   );
 
   // Register file deletion in rollback
@@ -49,7 +57,7 @@ export async function uploadKycDocument(userId, file, documentType, rollback = n
   }
 
   // 2. Generate the visual URL for the file
-  const fileUrl = `${process.env.APPWRITE_ENDPOINT}/storage/buckets/${AUDIT_BUCKET_ID}/files/${uploadedFile.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+  const fileUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
 
   // 3. Create the document record in kycDocuments collection
   const documentData = {

@@ -1,9 +1,10 @@
-import { DATABASE_ID, COLLECTION_ID_ASSEMBLIES, COLLECTION_ID_ASSEMBLY_PROXIES, createAdminClient, COLLECTION_ID_ASSEMBLY_ATTENDANCE } from "@/lib/appwrite-server";
+import { DATABASE_ID, COLLECTION_ID_ASSEMBLIES, COLLECTION_ID_ASSEMBLY_PROXIES, createAdminClient, COLLECTION_ID_ASSEMBLY_ATTENDANCE, COLLECTION_ID_COOPXMEMBER, COLLECTION_ID_PROFILE } from "@/lib/appwrite-server";
 import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
-import { Query } from "appwrite";
+import { Query } from "node-appwrite";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { ID } from "node-appwrite";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET(request) {
   try {
@@ -57,7 +58,6 @@ export async function GET(request) {
         scope: proxy.scope,
         status: proxy.status,
         proxyUserId: proxy.proxyUserId,
-        proxyPassword: proxy.proxyPassword,
         proxyLink: proxy.proxyLink,
         submittedAt: proxy.submittedAt,
         expiresAt: proxy.expiresAt,
@@ -65,12 +65,15 @@ export async function GET(request) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "UNAUTHORIZED") {
+      return sessionErrorResponse({ status: error?.status === 403 ? 403 : 401 });
+    }
     console.error("GET_PROXY_ERROR:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch proxy",
+        error: "Failed to fetch proxy",
       },
       {
         status: 500,
@@ -85,24 +88,26 @@ export async function POST(request) {
 
     const {
       assemblyId,
-      assemblyTitle,
-      ownerEmail,
-      ownerName,
       ownerUserId,
       proxyHolderUserId,
-      proxyHolderName,
-      proxyHolderEmail,
       scope,
-      status,
       proxyUserId,
       proxyPassword,
-      proxyLink,
-      submittedAt,
-      expiresAt,
     } = body;
 
 
-    if (!assemblyId || !proxyHolderUserId) {
+    if (
+      !assemblyId ||
+      !proxyHolderUserId ||
+      typeof proxyUserId !== "string" ||
+      proxyUserId.length < 6 ||
+      proxyUserId.length > 100 ||
+      typeof proxyPassword !== "string" ||
+      proxyPassword.length < 8 ||
+      proxyPassword.length > 128 ||
+      !["FULL", "LIMITED"].includes(scope) ||
+      proxyHolderUserId === ownerUserId
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -123,13 +128,74 @@ export async function POST(request) {
     const hashedPassword = await bcrypt.hash(proxyPassword, 10);
     const { databases } = createAdminClient();
 
+    const assembly = await databases.getDocument(
+      DATABASE_ID,
+      COLLECTION_ID_ASSEMBLIES,
+      assemblyId,
+    );
+    const attendanceResult = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_ASSEMBLY_ATTENDANCE,
+      [
+        Query.equal("assemblyId", assemblyId),
+        Query.equal("memberId", user.userId),
+        Query.limit(1),
+      ],
+    );
+    const attendance = attendanceResult.documents[0];
+    if (!attendance || ["closed", "archived", "discarded"].includes(assembly.status)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const holderMembership = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_COOPXMEMBER,
+      [
+        Query.equal("coopId", assembly.coopId),
+        Query.equal("userId", proxyHolderUserId),
+        Query.equal("status", ["active", "noticegiven", "Active"]),
+        Query.limit(1),
+      ],
+    );
+    if (holderMembership.documents.length === 0) {
+      return NextResponse.json({ success: false, error: "Proxy holder must be an active member" }, { status: 400 });
+    }
+
+    const holderProfiles = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_PROFILE,
+      [Query.equal("userId", proxyHolderUserId), Query.limit(1)],
+    );
+    const holderProfile = holderProfiles.documents[0];
+    if (!holderProfile) {
+      return NextResponse.json({ success: false, error: "Proxy holder profile not found" }, { status: 400 });
+    }
+
+    const duplicate = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_ASSEMBLY_PROXIES,
+      [
+        Query.equal("assemblyId", assemblyId),
+        Query.equal("ownerUserId", user.userId),
+        Query.limit(10),
+      ],
+    );
+    if (duplicate.documents.some((item) => item.status !== "revoked")) {
+      return NextResponse.json({ success: false, error: "A proxy already exists for this assembly" }, { status: 409 });
+    }
+
+    const proxyHolderName = `${holderProfile.FirstName || ""} ${holderProfile.LastName || ""}`.trim();
+    const proxyHolderEmail = holderProfile.contactEmail;
+    const baseUrl = (process.env.DEPLOYMENT_URL || "https://monujesh-cooppilot.coopos.cloud").replace(/\/$/, "");
+    const proxyLink = `${baseUrl}/${encodeURIComponent(assembly.coopId)}/assembly/${encodeURIComponent(assemblyId)}/proxy`;
+
     const proxy = await databases.createDocument(
       DATABASE_ID,
       COLLECTION_ID_ASSEMBLY_PROXIES,
       ID.unique(),
       {
         assemblyId,
-        assemblyTitle,
+        assemblyTitle: assembly.title,
         ownerUserId: user.userId,
         ownerName: user.name,
         ownerEmail: user.email,
@@ -137,13 +203,12 @@ export async function POST(request) {
         proxyHolderName,
         proxyHolderEmail,
         scope,
-        status,
+        status: "active",
         proxyUserId,
-        // proxyPassword: hashedPassword,
-        proxyPassword,
+        proxyPassword: hashedPassword,
         proxyLink,
-        submittedAt,
-        expiresAt,
+        submittedAt: new Date().toISOString(),
+        expiresAt: assembly.endDateTime,
       },
     );
 
@@ -158,18 +223,6 @@ export async function POST(request) {
           scope,
         },
       );
-
-      const attendanceResult = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_ID_ASSEMBLY_ATTENDANCE,
-        [
-          Query.equal("assemblyId", assemblyId),
-          Query.equal("memberId", user.userId),
-          Query.limit(1),
-        ],
-      );
-
-      const attendance = attendanceResult.documents[0];
 
       if (attendance) {
         await databases.updateDocument(
@@ -241,15 +294,25 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      proxy,
+      proxy: {
+        id: proxy.$id,
+        assemblyId: proxy.assemblyId,
+        proxyUserId: proxy.proxyUserId,
+        proxyLink: proxy.proxyLink,
+        expiresAt: proxy.expiresAt,
+        status: proxy.status,
+      },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "UNAUTHORIZED") {
+      return sessionErrorResponse({ status: error?.status === 403 ? 403 : 401 });
+    }
     console.error("CREATE_PROXY_ERROR:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to create proxy",
+        error: "Failed to create proxy",
       },
       {
         status: 500,

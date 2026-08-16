@@ -1,12 +1,12 @@
 // Notification Service - API Client Functions
 
-export async function createNotification({ createdBy, createdFor, message }) {
+export async function createNotification({ createdFor, message }) {
   try {
     console.log("in createNoti");
     const response = await fetch("/api/notification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ createdBy, createdFor, message }),
+      body: JSON.stringify({ createdFor, message }),
     });
 
     const result = await response.json();

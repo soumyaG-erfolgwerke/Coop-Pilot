@@ -8,36 +8,69 @@ import {
   createAdminClient,
 } from "@/lib/appwrite-server";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { resolveSession, sessionErrorResponse, AuthorizationError } from "@/lib/auth/session";
+import { verifyOnboardingInviteToken } from "@/lib/auth/onboarding-invite";
+import { createRollbackManager } from "@/lib/rollbackService";
 
 export const POST = async (request) => {
+  const rollback = createRollbackManager();
   try {
-    const { formData, isExistingCoopAdmin, coopId } = await request.json();
+    const { formData, coopId, inviteToken } = await request.json();
     const { databases, users } = createAdminClient();
-
-    const captchaToken = formData.get("captchaToken");  
-
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
-      return NextResponse.json(
-        { error: "Captcha token is required" },
-        { status: 400 },
-      );
+    if (!formData || typeof coopId !== "string" || !coopId || coopId.length > 100) {
+      return NextResponse.json({ error: "Invalid onboarding request" }, { status: 400 });
+    }
+    const email = typeof formData.email === "string" ? formData.email.trim().toLowerCase() : "";
+    if (!email || email.length > 254 || !/^\S+@\S+\.\S+$/.test(email)) {
+      return NextResponse.json({ error: "Invalid onboarding request" }, { status: 400 });
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
-      const ok = await verifyCaptcha(captchaToken);
-      console.log("Captcha verification result:", ok);
-      if (!ok) {
-        return NextResponse.json({ error: "Captcha failed" }, { status: 400 });
+    let session = null;
+    try { session = await resolveSession({ requireProfile: false }); } catch {}
+    const sessionMatches = session?.email?.toLowerCase() === email;
+    const signedInvite = verifyOnboardingInviteToken(inviteToken);
+    const tokenMatches = signedInvite?.email === email && signedInvite?.coopId === coopId;
+    if (!sessionMatches && !tokenMatches) throw new AuthorizationError();
+
+    const inviteResult = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_ONBOARDINGLOGS,
+      [
+        Query.equal("inviteEmail", email), Query.equal("coopId", coopId),
+        Query.equal("for", "coopadmin"), Query.equal("type", "SOLO"),
+        Query.equal("onboarded", false), Query.limit(10),
+      ],
+    );
+    const inviteRecord = tokenMatches
+      ? inviteResult.documents.find((item) => item.$id === signedInvite.inviteId)
+      : inviteResult.documents[0];
+    if (!inviteRecord) throw new AuthorizationError();
+
+    const profiles = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_ID_PROFILE,
+      [Query.equal("contactEmail", email), Query.limit(1)],
+    );
+    const existingProfile = profiles.documents[0] || null;
+
+    if (!existingProfile) {
+      const captchaToken = formData.captchaToken;
+      if (process.env.NODE_ENV === "production" && (!captchaToken || !(await verifyCaptcha(captchaToken)))) {
+        return NextResponse.json({ error: "Captcha verification failed" }, { status: 400 });
       }
-    }
-
-    const email = formData.email;
-
-    if (!isExistingCoopAdmin) {
+      if (
+        typeof formData.password !== "string" || formData.password.length < 12 || formData.password.length > 128 ||
+        typeof formData.fullLegalFirstMiddleName !== "string" || !formData.fullLegalFirstMiddleName.trim() ||
+        typeof formData.fullLegalLastName !== "string" || !formData.fullLegalLastName.trim()
+      ) {
+        return NextResponse.json({ error: "Invalid account details" }, { status: 400 });
+      }
       // Branch A: New Coopadmin
       // 1. Create Auth User
       let userId;
-      try {
+      if (sessionMatches) {
+        userId = session.userId;
+      } else try {
         const user = await users.create(
           ID.unique(),
           email,
@@ -46,22 +79,17 @@ export const POST = async (request) => {
           formData.fullLegalFirstMiddleName + " " + formData.fullLegalLastName,
         );
         userId = user.$id;
+        rollback.add(() => users.delete(userId));
       } catch (err) {
-        // If user already exists in auth but no profile
-        if (err.code === 409) {
-          const userList = await users.list([Query.equal("email", email)]);
-          if (userList.users.length > 0) {
-            userId = userList.users[0].$id;
-          } else {
-            throw err;
-          }
-        } else {
-          throw err;
-        }
+        if (err.code === 409) return NextResponse.json(
+          { error: "This account already exists. Sign in before accepting the invitation." },
+          { status: 409 },
+        );
+        throw err;
       }
 
       // 2. Create Profile
-      await databases.createDocument(
+      const profile = await databases.createDocument(
         DATABASE_ID,
         COLLECTION_ID_PROFILE,
         ID.unique(),
@@ -83,10 +111,29 @@ export const POST = async (request) => {
           bic: formData.bic || "",
           role: "coopadmin",
           status: "active",
+          isVerified: true,
           howHeard: "N/A",
           exp: true,
         },
       );
+      rollback.add(() => databases.deleteDocument(DATABASE_ID, COLLECTION_ID_PROFILE, profile.$id));
+    } else if (
+      existingProfile.role !== "coopadmin" ||
+      existingProfile.status !== "active" ||
+      existingProfile.isVerified !== true
+    ) {
+      const priorState = {
+        role: existingProfile.role || "member",
+        status: existingProfile.status || "active",
+        isVerified: existingProfile.isVerified === true,
+      };
+      await databases.updateDocument(
+        DATABASE_ID, COLLECTION_ID_PROFILE, existingProfile.$id,
+        { role: "coopadmin", status: "active", isVerified: true },
+      );
+      rollback.add(() => databases.updateDocument(
+        DATABASE_ID, COLLECTION_ID_PROFILE, existingProfile.$id, priorState,
+      ));
     }
 
     // Branch A & B: Update Cooperative and Onboarding Logs
@@ -110,46 +157,29 @@ export const POST = async (request) => {
               admins: [...currentAdmins, email],
             },
           );
+          rollback.add(() => databases.updateDocument(
+            DATABASE_ID, COLLECTION_ID_COOPERATIVES, coopId, { admins: currentAdmins },
+          ));
         }
-      } catch (e) {
-        console.error("Failed to update cooperative admins:", e);
-      }
+      } catch (e) { throw e; }
     }
 
     // Update onboarding logs
     if (coopId) {
       try {
-        const logsList = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_ID_ONBOARDINGLOGS,
-          [
-            Query.equal("inviteEmail", email),
-            Query.equal("coopId", coopId),
-            Query.equal("for", "coopadmin"),
-            Query.equal("type", "SOLO"),
-          ],
+        await databases.updateDocument(
+          DATABASE_ID, COLLECTION_ID_ONBOARDINGLOGS, inviteRecord.$id, { onboarded: true },
         );
-
-        if (logsList.documents.length > 0) {
-          await databases.updateDocument(
-            DATABASE_ID,
-            COLLECTION_ID_ONBOARDINGLOGS,
-            logsList.documents[0].$id,
-            {
-              onboarded: true,
-            },
-          );
-        }
-      } catch (e) {
-        console.error("Failed to update onboarding log:", e);
-      }
+      } catch (e) { throw e; }
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
+    await rollback.execute();
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error submitting onboarding:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Onboarding could not be completed" },
       { status: 500 },
     );
   }

@@ -1,7 +1,7 @@
-export const getInvitedCoopsByAdminEmail = async (email) => {
+export const getInvitedCoopsByAdminEmail = async (email, token = "") => {
   try {
     const response = await fetch(
-      `/api/onboardAdmin/fetchCoops/${encodeURIComponent(email)}`,
+      `/api/onboardAdmin/fetchCoops/${encodeURIComponent(email)}?token=${encodeURIComponent(token)}`,
     );
     if (!response.ok) {
       throw new Error("Network response was not ok");

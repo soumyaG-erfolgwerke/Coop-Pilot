@@ -111,7 +111,7 @@ const AddOrgAdmin = () => {
     avvFile: null,
   });
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   const [isVerifyingIban, setIsVerifyingIban] = useState(false);
 

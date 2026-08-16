@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
+import { safePublicError } from "@/lib/api/safe-public-error";
 import {
   COLLECTION_ID_AUDITTEAM_MEMBERS,
   COLLECTION_ID_AUDIT_ORGS,
@@ -32,6 +33,7 @@ export async function GET(request) {
 
     let limit = parseInt(searchParams.get("limit") || "10", 10);
     if (isNaN(limit) || limit < 1) limit = 10;
+    limit = Math.min(limit, 100);
 
     const offset = (page - 1) * limit;
 
@@ -193,7 +195,7 @@ export async function GET(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch team members",
+        error: safePublicError(error, "Failed to fetch team members"),
       },
       {
         status: 500,

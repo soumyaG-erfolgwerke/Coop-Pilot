@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { ID, Query } from "node-appwrite";
 import {
   appwriteFetchWithSession,
@@ -10,6 +9,7 @@ import {
   COLLECTION_ID_PROFILE,
   COLLECTION_ID_AUDITTEAM_MEMBERS
 } from "@/lib/appwrite-server";
+import { resolveSession } from "@/lib/auth/session";
 import {
   DEFAULT_COOPERATIVE_SETTINGS,
   validateCooperativeSettings,
@@ -146,74 +146,26 @@ async function createDocumentWithUnknownAttributeFallback({
 }
 
 export async function getAuthenticatedProfile() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("appwrite-session");
-
-  if (!sessionCookie?.value) {
-    throw new Error("UNAUTHORIZED");
-  }
-
-  let cookieValue = null;
+  let session;
   try {
-    const parsed = JSON.parse(sessionCookie.value);
-    cookieValue = parsed?.cookieValue || parsed?.secret || null;
-  } catch {
-    cookieValue = sessionCookie.value;
+    session = await resolveSession();
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      throw new Error("UNAUTHORIZED");
+    }
+    throw error;
   }
-
-  if (!cookieValue) {
-    throw new Error("UNAUTHORIZED");
-  }
-
-  const accountResponse = await appwriteFetchWithSession(
-    cookieValue,
-    "/account",
-  );
-  if (!accountResponse.ok) {
-    throw new Error("UNAUTHORIZED");
-  }
-
-  const account = await accountResponse.json();
-  const userId = account?.$id;
-  if (!userId) {
-    throw new Error("UNAUTHORIZED");
-  }
-
-  const { databases, users } = createAdminClient();
-  const user = await users.get(userId);
-
-  const userLabels = user.labels || [];
-  const isAuditTeamMember = userLabels.includes("teamMember");
-
-  let profileResult = null;
-
-  if (!isAuditTeamMember) {
-    profileResult = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_PROFILE,
-      [Query.equal("userId", userId), Query.limit(1)],
-    );
-  } else {
-    profileResult = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_AUDITTEAM_MEMBERS,
-      [Query.equal("email", user.email), Query.limit(1)],
-    );
-  }
-
-  if (!profileResult.documents.length) {
-    throw new Error("UNAUTHORIZED");
-  }
-
-  const profile = profileResult.documents[0];
+  const profile = session.profile;
   return {
-    userId,
-    role: profile.role,
-    email: profile.contactEmail ?? profile.email,
+    userId: session.userId,
+    role: session.role,
+    email: session.email,
     name: profile.FirstName
       ? `${profile.FirstName || ""} ${profile.LastName || ""}`.trim()
-      : profile.name || user.name || "",
+      : profile.name || session.account?.name || "",
     profileId: profile.$id,
+    auditOrgId: session.auditOrgId || null,
+    coopId: session.coopId || null,
   };
 }
 

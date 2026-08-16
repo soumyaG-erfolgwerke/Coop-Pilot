@@ -5,12 +5,14 @@ import {
   COLLECTION_ID_GROUPS,
   COLLECTION_ID_PROFILE,
   COLLECTION_ID_SHARE,
+  COLLECTION_ID_TRANSACTION,
   createAdminClient,
   DATABASE_ID,
 } from "@/lib/appwrite-server";
 import { ID, Query } from "node-appwrite";
 import { createAuditLog } from "@/lib/auditLogService";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // Fetch share
 export async function GET(req) {
@@ -141,7 +143,7 @@ export async function POST(req) {
 
     sharedWithType = sharedWithType?.toUpperCase();
 
-    if (!documentId || !sharedWithType) {
+    if (!documentId || !sharedWithType || !["GROUP", "USER"].includes(sharedWithType)) {
       throw new Error("Missing required fields");
     }
     if (!coopId) {
@@ -163,6 +165,31 @@ export async function POST(req) {
         { success: false, error: "User profile not found" },
         { status: 404 },
       );
+    }
+
+    const document = await databases.getDocument(
+      DATABASE_ID,
+      COLLECTION_ID_DOCUMENTS,
+      documentId,
+    );
+    if (document.coopId !== coopId) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    if (sharedWithType === "GROUP") {
+      const group = await databases.getDocument(DATABASE_ID, COLLECTION_ID_GROUPS, groupId);
+      if (group.coopId !== coopId) {
+        return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      }
+    } else {
+      const membership = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_TRANSACTION,
+        [Query.equal("coopId", coopId), Query.equal("memberId", userId), Query.limit(1)],
+      );
+      if (membership.documents.length === 0) {
+        return NextResponse.json({ success: false, error: "Member is not part of this cooperative" }, { status: 400 });
+      }
     }
 
     const existing = await databases.listDocuments(
@@ -212,11 +239,7 @@ export async function POST(req) {
 
     try {
 
-      const doc = await databases.getDocument(
-        DATABASE_ID,
-        COLLECTION_ID_DOCUMENTS,
-        documentId,
-      );
+      const doc = document;
 
       if (sharedWithType === "USER") {
         await createAuditLog({
@@ -260,7 +283,7 @@ export async function POST(req) {
         for (let i = 0; i < members.length; i += BATCH_SIZE){
           const batch = members.slice(i, i + BATCH_SIZE);
             await Promise.all(
-              members.map(async (memberId) => {
+              batch.map(async (memberId) => {
                 try {
                   await createAuditLog({
                     action: "GROUP_DOC_SHARED",
@@ -304,7 +327,7 @@ export async function POST(req) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to share document",
+        error: safePublicError(error, "Failed to share document"),
       },
       { status: 500 },
     );

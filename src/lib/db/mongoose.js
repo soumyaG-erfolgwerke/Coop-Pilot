@@ -1,12 +1,5 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URL = process.env.MONGODB_URL;
-const MONGODB_NAME = process.env.MONGODB_NAME;
-
-if (!MONGODB_URL) {
-  throw new Error('Please define MONGODB_URL in your .env file');
-}
-
 /**
  * Global connection cache.
  * In Next.js dev mode, module-level variables reset on hot reload.
@@ -25,6 +18,11 @@ if (!cached) {
  * @returns {Promise<mongoose.Connection>}
  */
 export async function connectToDatabase() {
+  const mongodbUrl = process.env.MONGODB_URL;
+  const mongodbName = process.env.MONGODB_NAME;
+  if (!mongodbUrl) {
+    throw new Error('MongoDB is not configured');
+  }
   // Already connected — return immediately
   if (cached.conn) {
     return cached.conn;
@@ -39,12 +37,12 @@ export async function connectToDatabase() {
       socketTimeoutMS: 45000,
     };
 
-    if (MONGODB_NAME) {
-      opts.dbName = MONGODB_NAME;
+    if (mongodbName) {
+      opts.dbName = mongodbName;
     }
 
     cached.promise = mongoose
-      .connect(MONGODB_URL, opts)
+      .connect(mongodbUrl, opts)
       .then((mongooseInstance) => {
         console.log('[MongoDB] Connected successfully');
         return mongooseInstance;

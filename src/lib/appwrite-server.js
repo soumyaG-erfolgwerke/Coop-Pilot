@@ -247,6 +247,7 @@ const createAdminClient = () => {
     databases: wrapWithLogging(new sdk.Databases(client), 'Databases'),
     users: wrapWithLogging(new sdk.Users(client), 'Users'),
     storage: wrapWithLogging(new sdk.Storage(client), 'Storage'),
+    functions: wrapWithLogging(new sdk.Functions(client), 'Functions'),
   };
 };
 
@@ -355,6 +356,8 @@ export const COLLECTION_ID_AUDIT_ORGS = "6a14759100231d14797c";
 export const COLLECTION_ID_COOP_DOCS = "6a15b7f200107facc85e";
 export const OTP_FUNCTION_ENDPOINT =
   "https://6904e91900013336efe5.fra.appwrite.run/";
+export const OTP_FUNCTION_ID =
+  process.env.APPWRITE_OTP_FUNCTION_ID || "6904946400349dd87fdc";
 export const COLLECTION_ID_COOPXMEMBER = "6a0df06a00300d947887";
 export const COLLECTION_ID_USERTEXTFORM = "6a0ff6020011244c3d36";
 export const COLLECTION_ID_PENDINGPAYOUTS = "6a157ccc00107facc85e";
@@ -372,6 +375,7 @@ export const COLLECTION_ID_ONBOARDINGLOGS = "onboardinglogs";
 export const COLLECTION_ID_TEAMXCOOP = "6a22aeed0011df905c33";
 export const COLLECTION_ID_AUDIT_DISCREPANCY = "6a22af860034d02ac243";
 export const COLLECTION_ID_COOP_REPORTS = "6a21c85f003c61e159c5";
+export const COLLECTION_ID_STRIPE_WEBHOOK_EVENTS = "stripe_webhook_events";
 export const COLLECTION_ID_AUDIT_FORMS = "6a2031b600253fdb2456";
 export const COLLECTION_ID_CURRENT_AUDIT_FORM = "6a26d814002db06ac93a";
 export const COLLECTION_ID_MAIL_DIRECTORY = "6a259e3a000740b396c0";

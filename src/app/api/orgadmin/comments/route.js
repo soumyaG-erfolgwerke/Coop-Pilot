@@ -9,6 +9,8 @@ import {
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
 import { createRollbackManager } from "@/lib/rollbackService";
+import { requireAuditOrgAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const allowedRoles = [
   "org_admin",
@@ -24,8 +26,8 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const issueId = searchParams.get("issueId");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10")));
 
     if (!issueId) {
       return NextResponse.json(
@@ -43,6 +45,8 @@ export async function GET(request) {
     }
 
     const { databases } = createAdminClient();
+    const issue = await databases.getDocument(DATABASE_ID, COLLECTION_ID_ORG_ISSUES, issueId);
+    await requireAuditOrgAccess(issue.auditOrgId);
     const commentsResponse = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID_ORG_COMMENTS,
@@ -69,6 +73,7 @@ export async function GET(request) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error fetching comments:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch comments" },
@@ -110,6 +115,10 @@ export async function POST(request) {
         { success: false, error: "Issue not found" },
         { status: 404 },
       );
+    }
+    await requireAuditOrgAccess(issueResponse.auditOrgId);
+    if (typeof message !== "string" || message.trim().length < 1 || message.length > 5000) {
+      return NextResponse.json({ success: false, error: "Invalid comment" }, { status: 400 });
     }
 
     if (issueResponse.status === "resolved") {
@@ -168,6 +177,7 @@ export async function POST(request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error creating comment:", error);
     await rollback.execute();
     return NextResponse.json(

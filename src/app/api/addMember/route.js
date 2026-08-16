@@ -4,11 +4,18 @@ import {
   DATABASE_ID,
   COLLECTION_ID_PROFILE,
   AVV_BUCKET_id,
-  ENDPOINT,
-  PROJECT_ID
 } from "@/lib/appwrite-server";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
 import { ID } from "node-appwrite";
 import { createRollbackManager } from "@/lib/rollbackService";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
+import { InputFile } from "node-appwrite/file";
+import {
+  requireRole,
+  resolveSession,
+  sessionErrorResponse,
+} from "@/lib/auth/session";
 
 /**
  * POST /api/addMember
@@ -19,6 +26,7 @@ export async function POST(request) {
   const { users, databases } = createAdminClient();
 
   try {
+    requireRole(await resolveSession(), ["superuser"]);
     const formData = await request.formData();
 
     // 1. Extract and Validate Data
@@ -49,17 +57,22 @@ export async function POST(request) {
     // Upload AVV if available
     let avvLink = null;
     const avvFile = formData.get("avvFile");
+    let avvBuffer = null;
+    if (avvFile && typeof avvFile !== "string") {
+      avvBuffer = Buffer.from(await avvFile.arrayBuffer());
+      await assertMalwareFree(avvBuffer);
+    }
     
     // Fallback URL pattern if `storage.getFileView` string generation is preferred:
     // `ENDPOINT/storage/buckets/BUCKET_ID/files/FILE_ID/view?project=PROJECT_ID`
-    if (avvFile) {
+    if (avvFile && avvBuffer) {
       const { storage } = createAdminClient();
       const uploadedFile = await storage.createFile(
         AVV_BUCKET_id,
         ID.unique(),
-        avvFile
+        InputFile.fromBuffer(avvBuffer, avvFile.name)
       );
-      avvLink = `${ENDPOINT}/storage/buckets/${AVV_BUCKET_id}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}`;
+      avvLink = getSecureFileUrl(AVV_BUCKET_id, uploadedFile.$id);
       rollback.add(() => storage.deleteFile(AVV_BUCKET_id, uploadedFile.$id));
     }
 
@@ -111,6 +124,9 @@ export async function POST(request) {
       profileId: profile.$id,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error("Critical Registration Failure (Triggering Rollback):", error);
 
     // [User Request Fix] Improved rollback trigger: 
@@ -125,7 +141,7 @@ export async function POST(request) {
       {
         success: false,
         error: {
-          message: error.message || "Registration failed. Please check your details and try again.",
+          message: safePublicError(error, "Registration failed. Please check your details and try again."),
           code: error.code || 500,
           type: error.type || "INTERNAL_ERROR"
         }

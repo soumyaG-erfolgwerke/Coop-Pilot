@@ -1,45 +1,30 @@
 import { NextResponse } from "next/server";
 import { Query, ID } from "node-appwrite";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_ONBOARDED_MEMBERS,
   COLLECTION_ID_COOPERATIVES,
   COLLECTION_ID_COOPXMEMBER,
-  COLLECTION_ID_PROFILE,
 } from "@/lib/appwrite-server";
+import { resolveSession } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // Helper to authenticate user and get user profile
-async function getAuthenticatedUser(databases) {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("appwrite-session");
-  if (!sessionCookie?.value) {
+async function getAuthenticatedUser() {
+  try {
+    const session = await resolveSession();
+    if (session.isTeamMember) return null;
+    return { userId: session.userId, profile: session.profile };
+  } catch {
     return null;
   }
-  const sessionData = JSON.parse(sessionCookie.value);
-  const userId = sessionData.userId;
-
-  const profilesResult = await databases.listDocuments(
-    DATABASE_ID,
-    COLLECTION_ID_PROFILE,
-    [Query.equal("userId", userId)],
-  );
-
-  if (profilesResult.documents.length === 0) {
-    return null;
-  }
-
-  return {
-    userId,
-    profile: profilesResult.documents[0],
-  };
 }
 
 export async function GET(request) {
   try {
     const { databases } = createAdminClient();
-    const auth = await getAuthenticatedUser(databases);
+    const auth = await getAuthenticatedUser();
     if (!auth) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -99,7 +84,7 @@ export async function GET(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch onboarding list",
+        error: safePublicError(error, "Failed to fetch onboarding list"),
       },
       { status: 500 },
     );
@@ -109,7 +94,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const { databases } = createAdminClient();
-    const auth = await getAuthenticatedUser(databases);
+    const auth = await getAuthenticatedUser();
     if (!auth) {
       return NextResponse.json(
         { success: false, error: "Unauthorized" },
@@ -283,7 +268,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to process onboarding",
+        error: safePublicError(error, "Failed to process onboarding"),
       },
       { status: 500 },
     );

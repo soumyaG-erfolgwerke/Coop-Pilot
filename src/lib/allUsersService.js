@@ -46,14 +46,14 @@ export const getUserByIdService = async (userId) => {
  */
 export const updateUserProfileService = async (
   userId,
-  { name, phone, address }
+  { phone, address }
 ) => {
   try {
     const response = await fetch(`/api/userServices/${userId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ name, phone, address }),
+      body: JSON.stringify({ phone, address }),
     });
     const data = await response.json();
     if (!data.success) {

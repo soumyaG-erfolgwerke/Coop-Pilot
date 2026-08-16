@@ -1,11 +1,11 @@
 // Client-side service - uses API route for password recovery operations
 
-export async function createRecovery(email) {
+export async function createRecovery(email, captchaToken) {
   try {
     const res = await fetch("/api/forget-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, captchaToken }),
     });
     const data = await res.json();
     return { status: data.status, message: data.message };

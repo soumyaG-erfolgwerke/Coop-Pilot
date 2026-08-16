@@ -7,6 +7,7 @@ import {
   COLLECTION_ID_ASSEMBLY_ATTENDANCE,
 } from "@/lib/appwrite-server";
 import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 const parseJsonSafely = (value, fallback) => {
   if (typeof value !== "string") return value ?? fallback;
@@ -174,7 +175,7 @@ export async function GET(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to fetch assemblies" },
+      { success: false, error: safePublicError(error, "Failed to fetch assemblies") },
       { status: 500 },
     );
   }

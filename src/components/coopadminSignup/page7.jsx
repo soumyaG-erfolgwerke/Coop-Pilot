@@ -3,7 +3,7 @@ import { Lock } from "lucide-react";
 import TrustcaptchaComponent from "@/components/shared/TrustCaptchaWrapper";
 
 const Page7 = ({ formData, handleChange, handleCaptchaChange, errors }) => {
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "deployment";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   return (
     <div className="space-y-6 animate-fadeIn">

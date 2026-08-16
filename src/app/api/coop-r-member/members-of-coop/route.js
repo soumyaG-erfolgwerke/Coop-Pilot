@@ -6,10 +6,13 @@ import {
     COLLECTION_ID_COOPXMEMBER, COLLECTION_ID_COOPERATIVES,
     COLLECTION_ID_KYC_APPLICATIONS
 } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
 
 // GET /api/coop-r-member/members-of-coop?coopId= - Get members of a coop with their share totals
 export async function GET(request) {
     try {
+        const session = await resolveSession();
         const { searchParams } = new URL(request.url);
         const coopId = searchParams.get("coopId");
 
@@ -19,6 +22,7 @@ export async function GET(request) {
                 { status: 400 }
             );
         }
+        await requireCoopAdministration(session, coopId);
 
         const { databases } = createAdminClient();
 
@@ -139,6 +143,7 @@ export async function GET(request) {
 
         return NextResponse.json({ success: true, members: result });
     } catch (error) {
+        if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
         console.error("Failed to fetch members for coop:", error);
         return NextResponse.json({ success: false, members: [] }, { status: 500 });
     }

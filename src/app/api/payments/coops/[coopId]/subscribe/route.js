@@ -28,6 +28,8 @@ import {
 } from "@/lib/stripe/constants";
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
+import { requireStripeCoopAccess } from "@/lib/auth/stripe-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 export const POST = async (req, { params }) => {
   try {
@@ -38,6 +40,7 @@ export const POST = async (req, { params }) => {
     if (!session || !session.role || !STRIPE_AUTH_ROLES.has(session.role)) {
       return NextErrorJson("User unauthorized.", 403);
     }
+    await requireStripeCoopAccess(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -97,8 +100,9 @@ export const POST = async (req, { params }) => {
 
     return NextResponse.json({ url: checkoutSession.url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err?.status === 401 || err?.status === 403) return sessionErrorResponse(err);
+    console.error("Stripe subscription checkout failed", err);
+    return NextResponse.json({ error: "Unable to create subscription checkout" }, { status: 500 });
   }
 };
 

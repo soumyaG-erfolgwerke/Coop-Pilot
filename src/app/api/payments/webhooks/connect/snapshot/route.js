@@ -17,6 +17,7 @@ import {
 } from "@/lib/appwrite-server";
 import { stripe } from "@/lib/stripe/client";
 import { NextResponse } from "next/server";
+import { claimWebhookEvent, completeWebhookEvent, failWebhookEvent } from "@/lib/payments/webhook-idempotency";
 
 const NextErrorJson = (message, status = 500) =>
   NextResponse.json({ success: false, error: message }, { status });
@@ -78,7 +79,12 @@ export const POST = async (req) => {
   };
 
   const { databases, storage } = createAdminClient();
+  const claim = await claimWebhookEvent(databases, event, "connect-snapshot");
+  if (!claim.process) {
+    return NextResponse.json({ received: true, duplicate: true, reason: claim.reason });
+  }
 
+  try {
   switch (event.type) {
     case "payment_intent.processing": {
       await updatePaymentProposal(databases, piData.transactionId, "payment_processing");
@@ -91,10 +97,8 @@ export const POST = async (req) => {
       const memberNumber = piData.memberNumber || newMembershipId;
 
       //! TRANSACTION LEDGER - PHASE 2/1
-      const payload = {
-        paymentStatus: "PAID",
-        memberNumber: memberNumber,
-      };
+      const payload = { paymentStatus: "PAID" };
+      if (memberNumber) payload.memberNumber = memberNumber;
 
       await updateTransactionRecord(databases, piData.transactionId, payload);
       break;
@@ -130,6 +134,13 @@ export const POST = async (req) => {
 
       break;
     }
+  }
+
+  await completeWebhookEvent(databases, event.id);
+  } catch (error) {
+    await failWebhookEvent(databases, event.id, error);
+    console.error("[WEBHOOK-SNAPSHOT] Processing failed", error);
+    return NextErrorJson("Webhook processing failed", 500);
   }
 
   return NextResponse.json({ received: true });

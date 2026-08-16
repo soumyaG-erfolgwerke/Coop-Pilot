@@ -3,15 +3,17 @@ import { ID, Query } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
 import {
   createAdminClient,
-  ENDPOINT,
   DATABASE_ID,
-  PROJECT_ID,
   COLLECTION_ID_AUDIT_ORGS,
 } from "@/lib/appwrite-server";
 import {
   getAuthenticatedProfile,
   stripInternalFields,
 } from "@/lib/helpers/_helpers";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { requireExpectedFileSignature } from "@/lib/files/file-signature";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
 
 const COOP_BUCKET_ID = "6918a3360027dc0888aa";
 const ALLOWED_FILE_KEYS = ["letterhead_url", "stamp_url", "logo_url", "esign_url"];
@@ -57,7 +59,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch uploaded files",
+        error: safePublicError(error, "Failed to fetch uploaded files"),
       },
       {
         status: 500,
@@ -73,7 +75,7 @@ const deleteFileByUrl = async (url) => {
     let fileId = null;
 
     try {
-      const parsedUrl = new URL(url);
+      const parsedUrl = new URL(url, "http://internal.invalid");
       const parts = parsedUrl.pathname.split("/");
 
       // expected pattern: /storage/buckets/{bucketId}/files/{fileId}/view
@@ -104,6 +106,8 @@ const deleteFileByUrl = async (url) => {
 const uploadFile = async (file) => {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
+  requireExpectedFileSignature(buffer, file.type);
+  await assertMalwareFree(buffer);
   const { storage } = createAdminClient();
   const inputFile = InputFile.fromBuffer(buffer, file.name);
   const uploadedFile = await storage.createFile(
@@ -114,7 +118,7 @@ const uploadFile = async (file) => {
 
   return {
     fileId: uploadedFile.$id,
-    fileUrl: `${ENDPOINT}/storage/buckets/${COOP_BUCKET_ID}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}`,
+    fileUrl: getSecureFileUrl(COOP_BUCKET_ID, uploadedFile.$id),
   };
 };
 
@@ -185,6 +189,14 @@ export async function POST(request) {
       );
     }
 
+    const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "application/pdf"]);
+    if (!allowedTypes.has(file.type) || file.size < 1 || file.size > 5 * 1024 * 1024) {
+      return NextResponse.json(
+        { success: false, error: "Unsupported file or file too large" },
+        { status: 400 },
+      );
+    }
+
     const uploadedFile = await uploadFile(file);
     const existingUrl = auditOrg[field];
 
@@ -209,7 +221,7 @@ export async function POST(request) {
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to update files" },
+      { success: false, error: safePublicError(error, "Failed to update files") },
       { status: 500 },
     );
   }

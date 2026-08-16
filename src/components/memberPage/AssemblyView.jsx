@@ -434,7 +434,7 @@ export default function AssemblyView({ coops = [] }) {
     setLoading(true);
     setError("");
     try {
-      const memberRes = await getAllMembers();
+      const memberRes = await getAllMembers(coopId);
       setMembers(memberRes);
     } catch (error) {
       setError(error.message || "Failed to load members of coop");

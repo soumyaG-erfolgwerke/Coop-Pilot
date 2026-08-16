@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, DATABASE_ID } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
 
 const COLLECTION_ID_COOPERATIVES = "683f21190030cfd38fce";
 
@@ -11,6 +14,9 @@ export async function GET(request, { params }) {
     if (!coopId) {
       return NextResponse.json({ error: "Cooperative ID is required" }, { status: 400 });
     }
+    const session = await resolveSession();
+    if (["org_admin", "auditer", "aud_E", "aud_T"].includes(session.role)) await requireCoopAuditAccess(coopId);
+    else await requireCoopAdministration(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -26,9 +32,10 @@ export async function GET(request, { params }) {
 
     return NextResponse.json({ reportData });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to get report data:`, error);
     return NextResponse.json(
-      { error: error.message || "Failed to get report data" },
+      { error: "Failed to get report data" },
       { status: 500 }
     );
   }
@@ -43,12 +50,18 @@ export async function PUT(request, { params }) {
     if (!coopId) {
       return NextResponse.json({ error: "Cooperative ID is required" }, { status: 400 });
     }
+    const session = await resolveSession();
+    await requireCoopAdministration(session, coopId);
 
     if (reportData == null || typeof reportData !== "object") {
       return NextResponse.json(
         { error: "reportData must be a non-null object" },
         { status: 400 }
       );
+    }
+    const serializedReport = JSON.stringify(reportData);
+    if (serializedReport.length > 1_000_000) {
+      return NextResponse.json({ error: "reportData is too large" }, { status: 413 });
     }
 
     const { databases } = createAdminClient();
@@ -57,14 +70,15 @@ export async function PUT(request, { params }) {
       DATABASE_ID,
       COLLECTION_ID_COOPERATIVES,
       coopId,
-      { reportData: JSON.stringify(reportData) }
+      { reportData: serializedReport }
     );
 
     return NextResponse.json({ reportData: updated.reportData ?? reportData });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to save report data:`, error);
     return NextResponse.json(
-      { error: error.message || "Failed to save report data" },
+      { error: "Failed to save report data" },
       { status: 500 }
     );
   }

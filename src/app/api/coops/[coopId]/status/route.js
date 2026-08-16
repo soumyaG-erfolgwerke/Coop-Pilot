@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, DATABASE_ID } from "@/lib/appwrite-server";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 const COLLECTION_ID_COOPERATIVES = "683f21190030cfd38fce";
 
@@ -15,6 +16,7 @@ export async function PATCH(request, { params }) {
         { status: 400 }
       );
     }
+    requireRole(await resolveSession(), ["superuser", "superadmin"]);
 
     if (!["active", "inactive", "pending"].includes(newStatus)) {
       return NextResponse.json(
@@ -34,9 +36,10 @@ export async function PATCH(request, { params }) {
 
     return NextResponse.json(updatedDocument);
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to update cooperative status:`, error);
     return NextResponse.json(
-      { error: error.message || "Failed to update status" },
+      { error: "Failed to update status" },
       { status: 500 }
     );
   }

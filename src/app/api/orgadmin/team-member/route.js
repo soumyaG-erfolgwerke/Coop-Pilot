@@ -7,14 +7,12 @@ import {
   DATABASE_ID,
 } from "@/lib/appwrite-server";
 import { createRollbackManager } from "@/lib/rollbackService";
-import {
-  getAuthenticatedProfile,
-  stripInternalFields,
-} from "@/lib/helpers/_helpers";
+import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET(request) {
   try {
-    const auth = await getAuthenticatedProfile();
+    const auth = await resolveSession();
 
     if (auth.role !== "org_admin" && auth.role !== "auditer") {
       return NextResponse.json(
@@ -29,6 +27,7 @@ export async function GET(request) {
 
     let limit = parseInt(searchParams.get("limit") || "10", 10);
     if (isNaN(limit) || limit < 1) limit = 10;
+    limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
     const search = searchParams.get("search") || "";
@@ -111,12 +110,13 @@ export async function GET(request) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch team members",
+        error: "Failed to fetch team members",
       },
       {
         status: 500,
@@ -128,7 +128,7 @@ export async function GET(request) {
 export async function POST(request) {
   const rollback = createRollbackManager();
   try {
-    const auth = await getAuthenticatedProfile();
+    const auth = await resolveSession();
     if (auth.role !== "org_admin") {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
@@ -150,6 +150,13 @@ export async function POST(request) {
         { success: false, error: "Missing required fields" },
         { status: 400 },
       );
+    }
+    if (
+      name.length > 200 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      password.length < 8 || password.length > 256 || empId.length > 100 ||
+      !["auditer", "aud_E", "aud_T"].includes(role)
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid team member data" }, { status: 400 });
     }
 
     const { databases, users } = createAdminClient();
@@ -205,6 +212,7 @@ export async function POST(request) {
       document: stripInternalFields(teamMember),
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(error);
 
     if (rollback && rollback.size() > 0) {
@@ -214,7 +222,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to create team member",
+        error: "Failed to create team member",
       },
       {
         status: 500,
@@ -225,7 +233,7 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
-    const auth = await getAuthenticatedProfile();
+    const auth = await resolveSession();
     if (auth.role !== "org_admin") {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
@@ -247,6 +255,12 @@ export async function PATCH(request) {
         { success: false, error: "Missing required fields" },
         { status: 400 },
       );
+    }
+    if (
+      name.length > 200 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      empId.length > 100 || !["auditer", "aud_E", "aud_T"].includes(role)
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid team member data" }, { status: 400 });
     }
 
     const { databases } = createAdminClient();
@@ -296,12 +310,13 @@ export async function PATCH(request) {
       document: stripInternalFields(updatedMember),
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to update team member",
+        error: "Failed to update team member",
       },
       {
         status: 500,

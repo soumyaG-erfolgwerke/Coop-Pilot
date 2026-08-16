@@ -29,7 +29,7 @@ export default function ProxyDashboardAndLoginPage() {
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   const validateSession = async () => {
     try {
@@ -81,6 +81,7 @@ export default function ProxyDashboardAndLoginPage() {
           captchaToken,
         }),
       });
+      const result = await response.json();
 
       if (!result.success) {
         setCaptchaToken("");

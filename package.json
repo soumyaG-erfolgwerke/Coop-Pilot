@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start -H 127.0.0.1",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
@@ -18,6 +18,7 @@
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "codemirror": "^6.0.2",
+    "dompurify": "^3.4.13",
     "form-data": "^4.0.5",
     "framer-motion": "^12.23.12",
     "generate-password": "^1.7.1",
@@ -35,8 +36,8 @@
     "mongoose": "^9.7.1",
     "next": "^16.1.2",
     "node-appwrite": "^22.1.0",
-    "nodemailer": "^8.0.1",
-    "pdfjs-dist": "^5.7.284",
+    "nodemailer": "^9.0.5",
+    "pdfjs-dist": "^6.2.108",
     "puppeteer": "^25.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

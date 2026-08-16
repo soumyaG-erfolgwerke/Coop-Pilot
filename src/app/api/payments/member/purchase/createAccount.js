@@ -15,7 +15,6 @@ import {
   DATABASE_ID,
 } from "@/lib/appwrite-server";
 import { stripe } from "@/lib/stripe/client";
-import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 
 export const createStripeCustomer = async (
@@ -45,15 +44,11 @@ export const createStripeCustomer = async (
 
     return customer.id;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextErrorJson(message, 500);
+    throw err instanceof Error ? err : new Error("Stripe customer creation failed");
   }
 };
 
 /**───────────────── HELPERS ──────────────────────────────────*/
-
-const NextErrorJson = (message, status = 500) =>
-  NextResponse.json({ success: false, error: message }, { status });
 
 const PROFILE_FIELDS = ["FirstName", "LastName", "contactEmail", "telephoneNo"];
 

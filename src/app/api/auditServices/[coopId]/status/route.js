@@ -5,12 +5,19 @@ import {
   COLLECTION_ID_COOPERATIVES,
   COLLECTION_ID_AUDIT_HISTORY,
 } from "@/lib/appwrite-server";
-import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
+import { requireAuditEditor } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+
+const ALLOWED_AUDIT_STATUSES = new Set([
+  "START", "IN_PROGRESS", "SUBMITTED", "ASKED_TO_RESUBMIT",
+  "ASK_TO_RESUBMIT", "APPROVED", "COMPLETED", "REJECTED",
+]);
 
 // PATCH /api/auditServices/[coopId]/status - Update audit status
 export async function PATCH(request, { params }) {
   try {
     const { coopId } = await params;
+    const session = await requireAuditEditor(coopId);
     const body = await request.json();
     let auditId = body.auditId;
     const auditStatus = body.auditStatus;
@@ -22,7 +29,7 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    if (!auditStatus) {
+    if (!ALLOWED_AUDIT_STATUSES.has(auditStatus)) {
       return NextResponse.json(
         { success: false, error: "Audit status is required" },
         { status: 400 }
@@ -72,9 +79,21 @@ export async function PATCH(request, { params }) {
         { status: 404 }
       );
     }
+    if (auditDoc.coopId !== coopId) {
+      return NextResponse.json({ success: false, error: "Audit history document not found" }, { status: 404 });
+    }
 
     const originalCoopStatus = coopDoc.auditStatus || "";
     const originalAuditStatus = auditDoc.status || "";
+    if (originalAuditStatus === auditStatus && originalCoopStatus === auditStatus) {
+      return NextResponse.json({ success: true, document: coopDoc });
+    }
+    if (["COMPLETED", "REJECTED"].includes(originalAuditStatus)) {
+      return NextResponse.json(
+        { success: false, error: "Finalized audit status cannot be changed" },
+        { status: 409 },
+      );
+    }
 
     // 2. Perform updates with tracking for rollbacks
     let coopUpdated = false;
@@ -135,8 +154,7 @@ export async function PATCH(request, { params }) {
 
     // Create Audit Log note for status update
     try {
-      const auth = await getAuthenticatedProfile();
-      const role = auth?.role;
+      const role = session.role;
       if (role && ["org_admin", "auditer", "aud_E"].includes(role) && coopDoc.auditOrgId) {
         const { createAuditLog } = await import("@/lib/helpers/_loggerHelper");
         await createAuditLog({
@@ -151,6 +169,7 @@ export async function PATCH(request, { params }) {
 
     return NextResponse.json({ success: true, document: updatedCoopDoc });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to update audit status:`, error);
     return NextResponse.json(
       { success: false, error: "Could not update audit status" },

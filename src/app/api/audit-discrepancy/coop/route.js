@@ -5,6 +5,8 @@ import {
 } from "@/lib/appwrite-server";
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const { databases } = createAdminClient();
 
@@ -19,12 +21,14 @@ export const GET = async (request) => {
     }
 
     try {
+        await requireCoopAuditAccess(coopId);
         const res = await databases.listDocuments(
             DATABASE_ID,
             COLLECTION_ID_AUDIT_DISCREPANCY,
             [
                 Query.equal("coopId", coopId),
                 Query.equal("type", "threat"),
+                Query.notEqual("status", "resolved"),
                 Query.orderDesc("$createdAt"),
             ],
         );
@@ -35,6 +39,7 @@ export const GET = async (request) => {
         });
         return NextResponse.json({ discrepancyList }, { status: 200 });
     } catch (error) {
+        if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
         if (error?.code === 404) {
             return NextResponse.json({ discrepancyList: [] }, { status: 200 });
         }

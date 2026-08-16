@@ -10,8 +10,15 @@ import {
   ensureCoopAdminAccess,
   getAuthenticatedProfile,
 } from "@/lib/helpers/_helpers";
-import { Query } from "appwrite";
+import { Query } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
+import { requireAssemblyAdmin } from "@/lib/auth/assembly-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { hasExpectedFileSignature } from "@/lib/files/file-signature";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
+
+const MAX_MINUTES_FILE_BYTES = 10 * 1024 * 1024;
 
 export async function GET(req) {
   const { databases } = createAdminClient();
@@ -26,13 +33,7 @@ export async function GET(req) {
       );
     }
 
-    const user = await getAuthenticatedProfile();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "User not authenticated" },
-        { status: 401 },
-      );
-    }
+    await requireAssemblyAdmin(assemblyId);
 
     const res = await databases.listDocuments(
       DATABASE_ID,
@@ -64,9 +65,12 @@ export async function GET(req) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Fetch Niederschrift Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }
@@ -90,24 +94,29 @@ export async function POST(req) {
       );
     }
 
-    const user = await getAuthenticatedProfile();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
-
-    const auth = await ensureCoopAdminAccess(coopId);
-    if (!auth || auth.error) {
+    const { assembly } = await requireAssemblyAdmin(assemblyId);
+    if (assembly.coopId !== coopId) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 },
       );
     }
+    if (file.type !== "application/pdf" || file.size < 1 || file.size > MAX_MINUTES_FILE_BYTES) {
+      return NextResponse.json(
+        { success: false, error: "Minutes must be a PDF no larger than 10 MB" },
+        { status: 400 },
+      );
+    }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    if (!hasExpectedFileSignature(buffer, file.type)) {
+      return NextResponse.json(
+        { success: false, error: "File content does not match a PDF" },
+        { status: 400 },
+      );
+    }
+    await assertMalwareFree(buffer);
 
     const uploaded = await storage.createFile(
       AUDIT_BUCKET_ID,
@@ -144,9 +153,12 @@ export async function POST(req) {
       throw dbError;
     }
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Upload Niederschrift Error:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }

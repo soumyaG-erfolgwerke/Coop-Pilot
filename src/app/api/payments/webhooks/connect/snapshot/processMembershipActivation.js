@@ -14,6 +14,7 @@ import { generateMembershipPdf } from "@/lib/membershipPdfService";
 import { sendEmail } from "@/utils/mailer";
 import { ID, Query } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
 
 const processMembershipActivation = async (databases, storage, piData) => {
   let newMembershipId = null;
@@ -28,7 +29,12 @@ const processMembershipActivation = async (databases, storage, piData) => {
 
     if(tx.havePaid && tx.paymentStatus === "payment_succeeded") {
       console.log(`[WEBHOOK] Transaction ${transactionId} already marked as paid. Skipping membership activation.`);
-      return newMembershipId;
+      const existing = await databases.listDocuments({
+        databaseId: DATABASE_ID,
+        collectionId: COLLECTION_ID_COOPXMEMBER,
+        queries: [Query.equal("userId", userId), Query.equal("coopId", coopId), Query.orderDesc("$createdAt"), Query.limit(1)],
+      });
+      return existing.documents[0]?.membershipId || newMembershipId;
     }
 
     // 0. Toggle transaction proposal to verified
@@ -132,7 +138,7 @@ const processMembershipActivation = async (databases, storage, piData) => {
         InputFile.fromBuffer(pdfBuffer, `Membership_${newMembershipId}.pdf`),
       );
 
-      const memApplicationUrl = `${process.env.APPWRITE_ENDPOINT}/storage/buckets/${AVV_BUCKET_id}/files/${uploadedFile.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+      const memApplicationUrl = getSecureFileUrl(AVV_BUCKET_id, uploadedFile.$id);
 
       // A6. Activate Membership
       await databases.updateDocument({
@@ -194,7 +200,7 @@ const processMembershipActivation = async (databases, storage, piData) => {
     }
   } catch (error) {
     console.error("[WEBHOOK] Membership Activation Failed:", error);
-    return newMembershipId;
+    throw error;
   }
 };
 

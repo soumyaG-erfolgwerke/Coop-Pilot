@@ -8,6 +8,8 @@ import {
   COLLECTION_ID_ORG_ISSUES,
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { requireAuditOrgAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const allowedRoles = [
   "org_admin",
@@ -23,8 +25,8 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const auditOrgId = searchParams.get("auditOrgId");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "10")));
 
     if (!auditOrgId) {
       return NextResponse.json(
@@ -40,6 +42,7 @@ export async function GET(request) {
         { status: 403 },
       );
     }
+    await requireAuditOrgAccess(auditOrgId);
 
     const { databases } = createAdminClient();
     const auditOrg = await databases.getDocument(
@@ -78,6 +81,7 @@ export async function GET(request) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error fetching issues:", error);
     return NextResponse.json(
       { success: false, error: "An error occurred while fetching issues" },
@@ -103,6 +107,11 @@ export async function POST(request) {
         { success: false, error: "Forbidden" },
         { status: 403 },
       );
+    }
+    await requireAuditOrgAccess(auditOrgId);
+    if (typeof title !== "string" || title.trim().length < 1 || title.length > 200 ||
+        typeof description !== "string" || description.trim().length < 1 || description.length > 5000) {
+      return NextResponse.json({ success: false, error: "Invalid issue content" }, { status: 400 });
     }
 
     const { databases } = createAdminClient();
@@ -141,6 +150,7 @@ export async function POST(request) {
       { status: 201 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error creating issue:", error);
     return NextResponse.json(
       { success: false, error: "An error occurred while creating the issue" },
@@ -188,6 +198,7 @@ export async function PATCH(request) {
         { status: 404 },
       );
     }
+    await requireAuditOrgAccess(issueResponse.auditOrgId);
 
     if (status === issueResponse.status) {
       return NextResponse.json(
@@ -215,6 +226,7 @@ export async function PATCH(request) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error updating issue:", error);
     return NextResponse.json(
       { success: false, error: "An error occurred while updating the issue" },

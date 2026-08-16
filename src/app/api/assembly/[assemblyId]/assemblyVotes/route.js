@@ -13,6 +13,9 @@ import {
   ensureCoopAdminAccess,
   getAuthenticatedProfile,
 } from "@/lib/helpers/_helpers";
+import { requireAssemblyAdmin } from "@/lib/auth/assembly-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // GET - Fetch enriched assemblies with vote data
 export async function GET(req, { params }) {
@@ -27,13 +30,7 @@ export async function GET(req, { params }) {
     }
 
     // Only allow coopadmin to proceed
-    const user = await getAuthenticatedProfile();
-    if (!user || user.role !== "coopadmin") {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized access" },
-        { status: 401 },
-      );
-    }
+    await requireAssemblyAdmin(assemblyId);
 
     const { databases } = createAdminClient();
 
@@ -65,12 +62,15 @@ export async function GET(req, { params }) {
       votes: votesData,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Fetch Assembly Vote Data Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: safePublicError(error),
       },
       { status: 500 },
     );

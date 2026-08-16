@@ -41,6 +41,12 @@ const reqSchema = z.object({
 // POST /api/reports/capital-summary/generate?coopId=...&fiscalYear=YYYY
 // DB-backed report route: returns report payload matching the UI contract.
 export async function POST(req) {
+  const session = await getSession();
+  if (!session?.userId) return resUnauthorized();
+
+  const user = await resolveUser(session);
+  if (!user?.email) return resUnauthorized();
+
   let body;
   try {
     body = await req.json();
@@ -56,13 +62,6 @@ export async function POST(req) {
     }
 
     const { coopId, fiscalYear } = validation.data;
-
-    // ---- AuthN (session cookie) ----
-    const session = await getSession();
-    if (!session?.userId) return resUnauthorized();
-
-    const user = await resolveUser(session);
-    if (!user?.email) return resUnauthorized();
 
     // ---- AuthZ Guard (coop admin only) ----
     const { databases } = createAdminClient();
@@ -189,10 +188,12 @@ export async function POST(req) {
 
     return NextResponse.json({ success: true, report: doc, cached: false });
   } catch (error) {
+    if (error instanceof Response) return error;
+    console.error("Capital summary generation failed", { code: error?.code, type: error?.type });
     return NextResponse.json(
       {
         success: false,
-        error: error.message ?? "An unexpected error occurred during report generation.",
+        error: "Could not generate capital summary",
       },
       { status: 500 },
     );

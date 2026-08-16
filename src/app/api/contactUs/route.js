@@ -22,9 +22,9 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit") || "25");
-    const offset = parseInt(searchParams.get("offset") || "0");
-    const search = searchParams.get("search") || "";
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "25", 10) || 25));
+    const offset = Math.min(10_000, Math.max(0, parseInt(searchParams.get("offset") || "0", 10) || 0));
+    const search = (searchParams.get("search") || "").slice(0, 200);
 
     const { databases } = createAdminClient();
 
@@ -65,7 +65,7 @@ export async function POST(request) {
   try {
     const { name, email, text, contactNumber } = await request.json();
 
-    if (!name || !email || !text) {
+    if (typeof name !== "string" || !name.trim() || name.length > 150 || typeof email !== "string" || email.length > 254 || typeof text !== "string" || !text.trim() || text.length > 5000 || (contactNumber !== undefined && (typeof contactNumber !== "string" || contactNumber.length > 40))) {
       return NextResponse.json(
         { success: false, error: "name, email, and text are required" },
         { status: 400 },
@@ -84,10 +84,10 @@ export async function POST(request) {
     const { databases } = createAdminClient();
 
     const doc = {
-      name,
-      email,
-      text,
-      ...(contactNumber ? { contactNumber } : {}),
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      text: text.trim(),
+      ...(contactNumber ? { contactNumber: contactNumber.trim() } : {}),
     };
 
     const created = await databases.createDocument(

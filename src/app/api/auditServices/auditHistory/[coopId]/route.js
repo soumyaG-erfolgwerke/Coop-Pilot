@@ -9,10 +9,13 @@ import {
   COLLECTION_ID_AUDIT_HISTORY,
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET(request, { params }) {
   try {
     const { coopId } = await params;
+    await requireCoopAuditAccess(coopId);
 
     const { databases } = createAdminClient();
 
@@ -55,6 +58,9 @@ export async function GET(request, { params }) {
       documents: historyWithAuditors,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error(error);
 
     return NextResponse.json(

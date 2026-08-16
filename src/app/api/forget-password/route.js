@@ -5,11 +5,18 @@ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
 // POST /api/forget-password - Create password recovery email
 export async function POST(request) {
   try {
-    const { email } = await request.json();
+    const { email, captchaToken } = await request.json();
 
     if (!email) {
       return NextResponse.json(
         { success: false, error: "Email is required" },
+        { status: 400 },
+      );
+    }
+
+    if (process.env.NODE_ENV === "production" && !(await verifyCaptcha(captchaToken))) {
+      return NextResponse.json(
+        { success: false, status: 400, message: "CAPTCHA verification failed" },
         { status: 400 },
       );
     }
@@ -28,10 +35,11 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error("Error creating recovery:", error);
-    return NextResponse.json(
-      { success: false, status: 500, message: "Error creating recovery" },
-      { status: 500 },
-    );
+    return NextResponse.json({
+      success: true,
+      status: 200,
+      message: "If the account exists, a recovery email has been sent",
+    });
   }
 }
 
@@ -50,14 +58,14 @@ export async function PUT(request) {
       );
     }
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       if (!ok) {
         return NextResponse.json({ error: "Captcha failed" }, { status: 400 });

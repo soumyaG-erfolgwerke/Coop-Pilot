@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
+import { safePublicError } from "@/lib/api/safe-public-error";
 import {
   createAdminClient,
   DATABASE_ID,
@@ -160,7 +161,7 @@ export async function GET(request, { params }) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch audit details",
+        error: safePublicError(error, "Failed to fetch audit details"),
       },
       {
         status: 500,

@@ -1,12 +1,70 @@
 import { NextResponse } from "next/server";
-import puppeteer from "puppeteer";
-import fs from "fs";
-import path from "path";
+import http from "node:http";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+
+const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
+const MAX_PAGES = 60;
+const RENDER_TIMEOUT_MS = 25_000;
+
+function withTimeout(promise, timeoutMs, message) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      timer.unref?.();
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function renderWithIsolatedService(payload) {
+  const socketPath = process.env.PDF_RENDERER_SOCKET || "/home/monujesh/.local/run/cooppilot-pdf-renderer.sock";
+  const body = Buffer.from(JSON.stringify(payload));
+  return withTimeout(new Promise((resolve, reject) => {
+    const rendererRequest = http.request({ socketPath, path: "/render", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": body.length } }, (rendererResponse) => {
+      const chunks = [];
+      rendererResponse.on("data", (chunk) => chunks.push(chunk));
+      rendererResponse.on("end", () => {
+        if (rendererResponse.statusCode !== 200) {
+          const error = new Error(rendererResponse.statusCode === 429 ? "PDF renderer is busy" : "PDF renderer failed");
+          error.status = rendererResponse.statusCode;
+          reject(error);
+          return;
+        }
+        resolve(Buffer.concat(chunks));
+      });
+    });
+    rendererRequest.setTimeout(RENDER_TIMEOUT_MS, () => rendererRequest.destroy(new Error("PDF renderer timed out")));
+    rendererRequest.on("error", reject);
+    rendererRequest.end(body);
+  }), RENDER_TIMEOUT_MS + 5_000, "PDF renderer timed out");
+}
 
 // POST /api/auditServices/generatePdf - Generate text-selectable PDF using Puppeteer
 export async function POST(request) {
   try {
-    const { pagesHtml, htmlContent, pageFormat } = await request.json();
+    await resolveSession();
+    const declaredLength = Number(request.headers.get("content-length") || 0);
+    if (declaredLength > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ success: false, error: "Content is too large" }, { status: 413 });
+    }
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, "utf8") > MAX_REQUEST_BYTES) {
+      return NextResponse.json({ success: false, error: "Content is too large" }, { status: 413 });
+    }
+    let payload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
+    }
+    const { pagesHtml, htmlContent, pageFormat } = payload;
+    if (pagesHtml && (!Array.isArray(pagesHtml) || pagesHtml.length > MAX_PAGES || pagesHtml.some((page) => typeof page !== "string"))) {
+      return NextResponse.json({ success: false, error: "Invalid page content" }, { status: 400 });
+    }
+    if (htmlContent && typeof htmlContent !== "string") {
+      return NextResponse.json({ success: false, error: "Invalid content" }, { status: 400 });
+    }
 
     if (!pagesHtml && !htmlContent) {
       return NextResponse.json(
@@ -290,100 +348,33 @@ export async function POST(request) {
       </html>
     `;
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--font-render-hinting=none",
-      ],
+    const pdfBuffer = await renderWithIsolatedService({
+      html: fullHtmlDocument,
+      width: dimensions.width,
+      height: dimensions.height,
     });
 
-    try {
-      const page = await browser.newPage();
-
-      // Enable request interception to prevent local image deadlock issues in single-threaded environments
-      await page.setRequestInterception(true);
-      page.on("request", (req) => {
-        try {
-          const url = req.url();
-          const type = req.resourceType();
-
-          if (url.includes("localhost") || url.includes("127.0.0.1") || url.startsWith("/")) {
-            if (type === "image") {
-              try {
-                const urlObj = new URL(url);
-                const relativePath = urlObj.pathname;
-                const localFilePath = path.join(process.cwd(), "public", relativePath);
-
-                if (fs.existsSync(localFilePath) && fs.lstatSync(localFilePath).isFile()) {
-                  const fileBuffer = fs.readFileSync(localFilePath);
-                  let contentType = "image/png";
-                  if (relativePath.endsWith(".svg")) contentType = "image/svg+xml";
-                  else if (relativePath.endsWith(".jpg") || relativePath.endsWith(".jpeg")) contentType = "image/jpeg";
-                  else if (relativePath.endsWith(".gif")) contentType = "image/gif";
-                  else if (relativePath.endsWith(".webp")) contentType = "image/webp";
-
-                  req.respond({
-                    status: 200,
-                    contentType: contentType,
-                    body: fileBuffer,
-                  });
-                  return;
-                }
-              } catch (err) {
-                console.error("[PDF Gen] Error reading local image file:", err);
-              }
-
-              // Abort the request if the local image is not found on disk, preventing deadlock on dev server
-              req.abort("aborted");
-              return;
-            }
-          }
-          req.continue();
-        } catch (err) {
-          console.error("[PDF Gen] Error in request interception:", err);
-          req.continue();
-        }
-      });
-
-      // Set viewport dimensions
-      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 1 });
-      await page.setContent(fullHtmlDocument, { 
-        waitUntil: "networkidle0",
-        timeout: 15000 // Shorten timeout to 15 seconds so it fails gracefully rather than hanging for 30s
-      });
-
-      // Wait for all web fonts to load completely to avoid patchy text/faux-italic font rendering issues
-      await page.evaluateHandle(() => document.fonts.ready);
-
-      // Print to PDF with exact page sizes and no margins to preserve formatting
-      const pdfBuffer = await page.pdf({
-        width: dimensions.width,
-        height: dimensions.height,
-        printBackground: true,
-        margin: {
-          top: "0px",
-          bottom: "0px",
-          left: "0px",
-          right: "0px",
-        },
-      });
-
-      return new Response(pdfBuffer, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="Pruefungsbericht.pdf"`,
-        },
-      });
-    } finally {
-      await browser.close();
-    }
+    return new Response(pdfBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="Pruefungsbericht.pdf"`,
+        "Cache-Control": "no-store, max-age=0",
+      },
+    });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
+    if (error?.status === 429) {
+      return NextResponse.json(
+        { success: false, error: "PDF renderer is busy" },
+        { status: 429, headers: { "Retry-After": "5" } },
+      );
+    }
     console.error("PDF generation server error:", error);
     return NextResponse.json(
-      { success: false, error: "PDF generation failed: " + error.message },
+      { success: false, error: "PDF generation failed" },
       { status: 500 },
     );
   }

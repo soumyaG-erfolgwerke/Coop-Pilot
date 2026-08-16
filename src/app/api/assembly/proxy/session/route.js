@@ -69,6 +69,15 @@ export async function GET() {
         { status: 401 },
       );
     }
+    if (
+      proxy.status === "revoked" ||
+      (proxy.expiresAt && new Date(proxy.expiresAt) <= new Date())
+    ) {
+      return NextResponse.json(
+        { success: false, proxy: null, error: "Proxy session expired" },
+        { status: 401 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -78,12 +87,8 @@ export async function GET() {
         assemblyId: proxy.assemblyId,
         assemblyTitle: proxy.assemblyTitle,
         proxyHolderName: proxy.proxyHolderName,
-        proxyHolderEmail: proxy.proxyHolderEmail,
-        scope: proxy.scope,
-        status: proxy.status,
         ownerUserId: proxy.ownerUserId,
         ownerName: proxy.ownerName,
-        ownerEmail: proxy.ownerEmail,
         proxyHolderUserId: proxy.proxyHolderUserId,
       },
     });

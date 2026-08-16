@@ -31,6 +31,8 @@ import {
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createStripeAccount } from "./createAccount";
+import { requireStripeCoopAccess } from "@/lib/auth/stripe-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 export const POST = async (req, { params }) => {
   try {
@@ -40,6 +42,7 @@ export const POST = async (req, { params }) => {
     if (!session || !session.role || !STRIPE_AUTH_ROLES.has(session.role)) {
       return NextErrorJson("User unauthorized.", 403);
     }
+    await requireStripeCoopAccess(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -68,8 +71,9 @@ export const POST = async (req, { params }) => {
 
     return NextResponse.json({ url: accountLink.url });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextErrorJson(message, 500);
+    if (err?.status === 401 || err?.status === 403) return sessionErrorResponse(err);
+    console.error("Stripe onboarding link failed", err);
+    return NextErrorJson("Unable to create onboarding link", 500);
   }
 };
 

@@ -6,21 +6,26 @@ import {
   COLLECTION_ID_ASSEMBLY_VOTES,
   COLLECTION_ID_ASSEMBLY_ATTENDANCE,
 } from "@/lib/appwrite-server";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopParticipant, resolveVotingActor } from "@/lib/auth/vote-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // GET - Get member polls by coop ID (active and casted)
 export async function GET(request) {
   try {
+    const session = await resolveVotingActor();
     const { searchParams } = new URL(request.url);
     const coopId = searchParams.get("coopId");
     const userId = searchParams.get("userId");
-    const currentTime = searchParams.get("currentTime");
 
-    if (!coopId || !userId || !currentTime) {
+    if (!coopId || !userId) {
       return NextResponse.json(
         { success: false, error: "Missing required query parameters" },
         { status: 400 },
       );
     }
+    if (userId !== session.userId) return sessionErrorResponse({ status: 403 });
+    await requireCoopParticipant(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -32,9 +37,10 @@ export async function GET(request) {
 
     const activePolls = [];
     const castedPolls = [];
-    const now = new Date(currentTime);
+    const now = new Date();
 
     for (const doc of response.documents) {
+      if (session.role === "proxy" && doc.assemblyId !== session.proxyAssemblyId) continue;
       if (doc.assemblyId) {
         const attendanceResult = await databases.listDocuments(
           DATABASE_ID,
@@ -81,9 +87,12 @@ export async function GET(request) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error getting member polls:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }

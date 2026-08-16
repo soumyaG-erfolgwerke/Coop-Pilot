@@ -7,11 +7,13 @@ import {
   COLLECTION_ID_PROFILE,
   COLLECTION_ID_AUDIT_ORGS,
   AVV_BUCKET_id,
-  ENDPOINT,
-  PROJECT_ID,
 } from "@/lib/appwrite-server";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
 import { createRollbackManager } from "@/lib/rollbackService";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
+import { InputFile } from "node-appwrite/file";
 
 export async function POST(request) {
   const rollback = createRollbackManager();
@@ -38,14 +40,14 @@ export async function POST(request) {
       );
     }
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {
@@ -97,12 +99,14 @@ export async function POST(request) {
     let avvLink = null;
     const avvFile = formData.get("avvFile");
     if (avvFile && typeof avvFile !== "string") {
+      const avvBuffer = Buffer.from(await avvFile.arrayBuffer());
+      await assertMalwareFree(avvBuffer);
       const uploadedFile = await storage.createFile(
         AVV_BUCKET_id,
         ID.unique(),
-        avvFile,
+        InputFile.fromBuffer(avvBuffer, avvFile.name),
       );
-      avvLink = `${ENDPOINT}/storage/buckets/${AVV_BUCKET_id}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}`;
+      avvLink = getSecureFileUrl(AVV_BUCKET_id, uploadedFile.$id);
       rollback.add(() => storage.deleteFile(AVV_BUCKET_id, uploadedFile.$id));
     }
 
@@ -220,7 +224,7 @@ export async function POST(request) {
       }),
       {
         httpOnly: true,
-        secure: process.env.NEXT_PUBLIC_NODE_ENV === "production",
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7,
         path: "/",
@@ -242,9 +246,7 @@ export async function POST(request) {
       {
         success: false,
         error: {
-          message:
-            error.message ||
-            "Registration failed. Please check your details and try again.",
+          message: safePublicError(error, "Registration failed. Please check your details and try again."),
           code: error.code || 500,
           type: error.type || "INTERNAL_ERROR",
         },

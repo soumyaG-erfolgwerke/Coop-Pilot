@@ -2,6 +2,8 @@ import { uploadKycDocument } from "@/lib/kycDocumentService";
 import { addKycApplication } from "@/lib/addMemberKyc";
 import { createRollbackManager } from "@/lib/rollbackService";
 import { NextResponse } from "next/server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopMembership } from "@/lib/auth/membership-access";
 
 /**
  * POST /api/uploadKycDocument
@@ -14,18 +16,22 @@ export async function POST(request) {
   const rollback = createRollbackManager();
   
   try {
+    const session = await resolveSession();
     const formData = await request.formData();
-    const userId = formData.get("userId");
+    const requestedUserId = formData.get("userId");
+    const userId = session.userId;
     const file = formData.get("file");
     const documentType = formData.get("documentType");
     const coopId = formData.get("coopId");
 
-    if (!userId || !file || !documentType) {
+    if ((requestedUserId && requestedUserId !== userId) || !file || !documentType) {
       return NextResponse.json(
         { success: false, error: "Missing required fields: userId, file, or documentType" },
         { status: 400 }
       );
     }
+
+    if (coopId) await requireCoopMembership(session, coopId);
 
     // 1. Create a NEW KYC Application entry
     // We do this first to get an ID for the document to link back to
@@ -41,6 +47,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("KYC Upload API Error (Triggering Rollback):", error);
     
     // Execute rollback — LIFO order ensures:
@@ -50,7 +57,7 @@ export async function POST(request) {
     await rollback.execute();
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to process KYC document resubmission" },
+      { success: false, error: "Failed to process KYC document resubmission" },
       { status: 500 }
     );
   }

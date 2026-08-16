@@ -1,15 +1,28 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_PROFILE,
 } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse, AuthorizationError } from "@/lib/auth/session";
+
+const PROFILE_LIMITS = {
+  salutation: 30,
+  title: 50,
+  FirstName: 100,
+  LastName: 100,
+  street: 150,
+  houseNo: 30,
+  add: 250,
+  postalCode: 20,
+  location: 120,
+};
 
 // GET /api/userServices/update/profile - Get current user's profile for editing
 export async function GET(request) {
   try {
+    const session = await resolveSession();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
@@ -19,6 +32,7 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+    if (userId !== session.userId) throw new AuthorizationError();
 
     const { databases } = createAdminClient();
 
@@ -63,9 +77,10 @@ export async function GET(request) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error fetching profile:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Could not fetch profile" },
       { status: 500 }
     );
   }
@@ -74,6 +89,7 @@ export async function GET(request) {
 // PATCH /api/userServices/update/profile - Update user profile
 export async function PATCH(request) {
   try {
+    const session = await resolveSession();
     const body = await request.json();
     const { docId, ...profileData } = body;
 
@@ -102,18 +118,28 @@ export async function PATCH(request) {
     for (const field of allowedFields) {
       if (profileData[field] !== undefined) {
         if (field === "bday" && profileData[field]) {
-          try {
-            updateData[field] = new Date(profileData[field]).toISOString();
-          } catch {
-            updateData[field] = profileData[field];
+          if (typeof profileData[field] !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(profileData[field]) || Number.isNaN(Date.parse(`${profileData[field]}T00:00:00.000Z`))) {
+            return NextResponse.json({ success: false, error: "Invalid birth date" }, { status: 422 });
           }
+          updateData[field] = new Date(`${profileData[field]}T00:00:00.000Z`).toISOString();
         } else {
-          updateData[field] = profileData[field];
+          const value = profileData[field];
+          const limit = PROFILE_LIMITS[field];
+          if (typeof value !== "string" || (limit && value.length > limit)) {
+            return NextResponse.json({ success: false, error: `Invalid ${field}` }, { status: 422 });
+          }
+          updateData[field] = value.trim();
         }
       }
     }
 
     const { databases } = createAdminClient();
+
+    const currentDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_PROFILE, docId);
+    if (currentDoc.userId !== session.userId) throw new AuthorizationError();
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ success: false, error: "No valid fields supplied" }, { status: 400 });
+    }
 
     const updatedDoc = await databases.updateDocument(
       DATABASE_ID,
@@ -124,9 +150,10 @@ export async function PATCH(request) {
 
     return NextResponse.json({ success: true, data: updatedDoc });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error updating profile:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Could not update profile" },
       { status: 500 }
     );
   }

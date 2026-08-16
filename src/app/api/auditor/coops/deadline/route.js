@@ -46,8 +46,8 @@ export async function GET(request) {
 
     // pagination for coops
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page")) || 1;
-    const limit = parseInt(searchParams.get("limit")) || 10;
+    const page = Math.max(1, parseInt(searchParams.get("page")) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit")) || 10));
     const offset = (page - 1) * limit;
 
     const coopResponse = await databases.listDocuments(
@@ -81,7 +81,7 @@ export async function GET(request) {
           leadAuditorId: null,
           leadAuditorName: null,
           leadAuditorEmail: null,
-          isAllowedToEdit: auditOrg.admin_email === auth.email && false, // no audit, so no one can edit
+          isAllowedToEdit: false,
         })),
         total: coopResponse.total,
         page,
@@ -203,7 +203,8 @@ export async function PATCH(request) {
         COLLECTION_ID_TEAM_X_COOP,
         [
           Query.equal("coopId", auditHistory.coopId),
-          Query.equal("userId", auditorMember.$id),
+          Query.equal("teamMemberId", auditorMember.$id),
+          Query.equal("auditOrgId", auditorMember.auditOrgId),
         ],
       );
       if (!auditorAssignmentResponse.documents.length) {
@@ -237,12 +238,16 @@ export async function PATCH(request) {
         { status: 400 },
       );
     }
+    const parsedDeadline = new Date(deadline);
+    if (Number.isNaN(parsedDeadline.getTime()) || parsedDeadline <= new Date()) {
+      return NextResponse.json({ success: false, error: "Deadline must be a valid future date" }, { status: 400 });
+    }
 
     await databases.updateDocument(
       DATABASE_ID,
       COLLECTION_ID_AUDIT_HISTORY,
       auditId,
-      { deadline },
+      { deadline: parsedDeadline.toISOString() },
     );
 
     // Create Audit Log note

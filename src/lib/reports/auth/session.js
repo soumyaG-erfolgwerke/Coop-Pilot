@@ -5,21 +5,12 @@
  * Used in the Share Register Report API route.
  */
 
-import { cookies } from "next/headers";
+import { getSessionSecret } from "@/lib/auth/session";
 import { appwriteFetchWithSession } from "@/lib/appwrite-server";
 
 const getSession = async () => {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get("appwrite-session")?.value;
-
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw);
-  } catch {
-    cookieStore.delete("appwrite-session");
-    return null;
-  }
+  const cookieValue = await getSessionSecret();
+  return cookieValue ? { cookieValue } : null;
 };
 
 const resolveUser = async (session) => {
@@ -36,7 +27,7 @@ const resolveUser = async (session) => {
     const account = await res.json();
 
     return {
-      userId: session.userId,
+      userId: account?.$id || null,
       email: account?.email || null,
       name: account?.name || null,
     };

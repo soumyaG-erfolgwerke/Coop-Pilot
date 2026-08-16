@@ -5,6 +5,7 @@ import {
   DATABASE_ID,
   COLLECTION_ID_COOPERATIVES,
 } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // Shared placeholder colors for logos
 const placeholderColors = [
@@ -21,7 +22,7 @@ const defaultDescription =
   "[Company Name] is a forward-thinking organization committed to delivering innovative solutions across industries. We specialize in providing cutting-edge services and products that empower businesses to grow, adapt, and thrive in a rapidly evolving marketplace. Our dedicated team of professionals combines deep industry expertise with a passion for excellence, ensuring measurable impact and long-term success for our clients.At [Company Name], we believe in fostering a culture of integrity, collaboration, and continuous improvement. Our vision is to be a trusted partner for organizations worldwide, driving transformation through technology, strategy, and sustainable practices.";
 
 // Format a coop document for frontend
-function formatCoop(doc, useRandomColor = true) {
+function formatCoop(doc, useRandomColor = true, includeSensitive = false) {
   let selectedColor;
   if (useRandomColor) {
     selectedColor =
@@ -47,10 +48,13 @@ function formatCoop(doc, useRandomColor = true) {
       `https://placehold.co/40x40/${selectedColor}/FFFFFF?text=${doc.name.charAt(0).toUpperCase()}`,
     description: doc.about || defaultDescription,
     auditStatus: doc.auditStatus,
-    iban: doc.ibanNumber || null,
-    bic: doc.bicNumber || null,
-    ibanNumber: doc.ibanNumber || null,
-    bicNumber: doc.bicNumber || null,
+    ...(includeSensitive ? {
+      adminEmails: doc.admins || [],
+      iban: doc.ibanNumber || null,
+      bic: doc.bicNumber || null,
+      ibanNumber: doc.ibanNumber || null,
+      bicNumber: doc.bicNumber || null,
+    } : {}),
     isLive: doc.isLive ?? doc.make_live ?? false,
     make_live: doc.isLive ?? doc.make_live ?? false,
   };
@@ -59,6 +63,8 @@ function formatCoop(doc, useRandomColor = true) {
 // GET /api/coop-services/all - Get all cooperatives
 export async function GET() {
   try {
+    const session = await resolveSession();
+    const includeSensitive = ["superuser", "superadmin"].includes(session.role);
     const { databases } = createAdminClient();
 
     const response = await databases.listDocuments(
@@ -68,11 +74,12 @@ export async function GET() {
     );
 
     const formattedCoops = response.documents
-      .map((doc) => formatCoop(doc))
+      .map((doc) => formatCoop(doc, true, includeSensitive))
       .reverse();
 
     return NextResponse.json({ success: true, coops: formattedCoops });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to fetch cooperatives:", error);
     return NextResponse.json({ success: false, coops: [] }, { status: 500 });
   }

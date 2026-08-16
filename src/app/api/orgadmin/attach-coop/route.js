@@ -7,6 +7,8 @@ import {
   COLLECTION_ID_AUDIT_ORGS,
 } from "@/lib/appwrite-server";
 import { getAuthenticatedProfile, stripInternalFields } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { boundedId, validateStrictObject } from "@/lib/validation/strict-object";
 
 export async function POST(request) {
   try {
@@ -15,7 +17,10 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
-    const { coopId } = await request.json();
+    const body = await request.json();
+    const shape = validateStrictObject(body, ["coopId"], { maxBytes: 1024 });
+    if (!shape.ok) return NextResponse.json({ success: false, error: shape.error }, { status: 400 });
+    const coopId = boundedId(body.coopId);
     if (!coopId) {
       return NextResponse.json({ success: false, error: "coopId required" }, { status: 400 });
     }
@@ -67,6 +72,6 @@ export async function POST(request) {
     return NextResponse.json({ success: true, coop: serialized });
   } catch (error) {
     console.error("Failed to attach coop:", error);
-    return NextResponse.json({ success: false, error: error.message || "Failed to attach cooperative" }, { status: 500 });
+    return NextResponse.json({ success: false, error: safePublicError(error, "Failed to attach cooperative") }, { status: 500 });
   }
 }

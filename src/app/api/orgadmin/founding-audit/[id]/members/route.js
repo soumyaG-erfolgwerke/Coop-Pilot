@@ -1,17 +1,26 @@
 import {
   COLLECTION_ID_FOUNDING_AUDIT_MEMBERS,
+  COLLECTION_ID_FOUNDING_AUDIT_INSTANCES,
   createAdminClient,
   DATABASE_ID,
 } from "@/lib/appwrite-server";
 import { G4ItemSchema } from "@/lib/founding-audit/schema";
-import { getAuthenticatedProfile, stripInternalFields } from "@/lib/helpers/_helpers";
+import { stripInternalFields } from "@/lib/helpers/_helpers";
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
+import { requireAuditOrgAccess, requireAuditStaff } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const ROLES = new Set(["org_admin", "auditer", "aud_E"]);
 
 const NextErrorJson = (message, status = 500) =>
   NextResponse.json({ success: false, error: message }, { status: status });
+
+const requireFoundingAuditAccess = async (databases, auditId) => {
+  const audit = await databases.getDocument(DATABASE_ID, COLLECTION_ID_FOUNDING_AUDIT_INSTANCES, auditId);
+  await requireAuditOrgAccess(audit.auditOrgId);
+  return audit;
+};
 
 const getMemberDocById = async (databases, auditId) => {
   const result = await databases.listDocuments({
@@ -65,25 +74,22 @@ const deleteMemberDoc = async (databases, memberId) => {
  * Expects example URL: /api/orgadmin/founding-audit/6a2653c2002b270e4149/members
  */
 export const GET = async (req, { params }) => {
-  // ---- AuthN (session cookie) ----
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const { id: auditId } = await params;
     if (!auditId) {
       return NextErrorJson("Audit ID path parameter is required.", 400);
     }
 
     const { databases } = createAdminClient();
+    await requireFoundingAuditAccess(databases, auditId);
     const result = await getMemberDocById(databases, auditId);
     const resultDocs = result.documents.map(stripInternalFields);
 
     return NextResponse.json({ success: true, data: resultDocs });
   } catch (error) {
-    return NextErrorJson(`[GET-MEMBERS] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to fetch founding audit members");
   }
 };
 
@@ -93,13 +99,8 @@ export const GET = async (req, { params }) => {
  * Expects URL: /api/orgadmin/founding-audit/{auditId}/members with JSON body payload containing the member data fields.
  */
 export const POST = async (req, { params }) => {
-  // ---- AuthN (session cookie) ----
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const { id: auditId } = await params;
     if (!auditId) {
       return NextErrorJson("Audit ID path parameter is required.", 400);
@@ -113,6 +114,7 @@ export const POST = async (req, { params }) => {
     }
 
     const { databases } = createAdminClient();
+    await requireFoundingAuditAccess(databases, auditId);
     const result = await createMemberDoc(databases, auditId, memberType);
     const resultDoc = stripInternalFields(result);
 
@@ -121,7 +123,8 @@ export const POST = async (req, { params }) => {
       { status: 201 },
     );
   } catch (error) {
-    return NextErrorJson(`[CREATE-MEMBER] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to create founding audit member");
   }
 };
 
@@ -130,13 +133,8 @@ export const POST = async (req, { params }) => {
  * Fires when modifying an existing member's information in G4.
  */
 export const PUT = async (req, { params }) => {
-  // ---- AuthN (session cookie) ----
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const { id: auditId } = await params;
     if (!auditId) {
       return NextErrorJson("Audit ID path parameter is required.", 400);
@@ -173,6 +171,10 @@ export const PUT = async (req, { params }) => {
 
     const { databases } = createAdminClient();
 
+    await requireFoundingAuditAccess(databases, auditId);
+    const existingMember = await databases.getDocument(DATABASE_ID, COLLECTION_ID_FOUNDING_AUDIT_MEMBERS, memberId);
+    if (existingMember.auditId !== auditId) return NextErrorJson("Member record not found.", 404);
+
     const result = await updateMemberDoc(databases, memberId, rowData);
     const resultDoc = stripInternalFields(result);
 
@@ -185,7 +187,8 @@ export const PUT = async (req, { params }) => {
       { status: 200 },
     );
   } catch (error) {
-    return NextErrorJson(`[UPDATE-MEMBER] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to update founding audit member");
   }
 };
 
@@ -194,13 +197,8 @@ export const PUT = async (req, { params }) => {
  * Fires when a member is removed from the G4 matrix layout.
  */
 export const DELETE = async (req, { params }) => {
-  // ---- AuthN (session cookie) ----
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const { id: auditId } = await params;
     if (!auditId) {
       return NextErrorJson("Audit ID path parameter is required.", 400);
@@ -215,6 +213,9 @@ export const DELETE = async (req, { params }) => {
     }
 
     const { databases } = createAdminClient();
+    await requireFoundingAuditAccess(databases, auditId);
+    const existingMember = await databases.getDocument(DATABASE_ID, COLLECTION_ID_FOUNDING_AUDIT_MEMBERS, memberId);
+    if (existingMember.auditId !== auditId) return NextErrorJson("Member record not found.", 404);
     await deleteMemberDoc(databases, memberId);
 
     return NextResponse.json(
@@ -222,6 +223,7 @@ export const DELETE = async (req, { params }) => {
       { status: 200 },
     );
   } catch (error) {
-    return NextErrorJson(`[DELETE-MEMBER-ROW] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to delete founding audit member");
   }
 };

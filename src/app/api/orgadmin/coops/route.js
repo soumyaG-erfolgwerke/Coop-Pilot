@@ -6,14 +6,12 @@ import {
   COLLECTION_ID_AUDIT_ORGS,
   COLLECTION_ID_COOPERATIVES,
 } from "@/lib/appwrite-server";
-import {
-  getAuthenticatedProfile,
-  stripInternalFields,
-} from "@/lib/helpers/_helpers";
+import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET(request) {
   try {
-    const auth = await getAuthenticatedProfile();
+    const auth = await resolveSession();
     if (auth.role !== "org_admin") {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
@@ -61,12 +59,13 @@ export async function GET(request) {
       cooperatives: coops,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch cooperatives",
+        error: "Failed to fetch cooperatives",
       },
       {
         status: 500,

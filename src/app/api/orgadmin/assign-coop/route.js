@@ -13,13 +13,14 @@ import {
   stripInternalFields,
 } from "@/lib/helpers/_helpers";
 import { createRollbackManager } from "@/lib/rollbackService";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function POST(request) {
   const rollback = createRollbackManager();
   try {
     const { coopId, members } = await request.json();
 
-    if (!coopId || !Array.isArray(members) || members.length === 0) {
+    if (typeof coopId !== "string" || !coopId.trim() || coopId.length > 64 || !Array.isArray(members) || members.length === 0 || members.length > 100) {
       return NextResponse.json(
         {
           success: false,
@@ -27,6 +28,10 @@ export async function POST(request) {
         },
         { status: 400 },
       );
+    }
+    const allowedAssignmentRoles = new Set(["auditer", "aud_E", "aud_T"]);
+    if (members.some((member) => !member || typeof member.memberId !== "string" || !member.memberId.trim() || member.memberId.length > 64 || !allowedAssignmentRoles.has(member.role)) || new Set(members.map((member) => member.memberId)).size !== members.length) {
+      return NextResponse.json({ success: false, error: "Invalid or duplicate member assignment" }, { status: 400 });
     }
 
     const auth = await getAuthenticatedProfile();
@@ -211,7 +216,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Failed to assign members",
+        error: safePublicError(error, "Failed to assign members"),
       },
       { status: 500 },
     );
@@ -329,7 +334,7 @@ export async function GET(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch assigned members for coop",
+        error: safePublicError(error, "Failed to fetch assigned members for coop"),
       },
       {
         status: 500,
@@ -454,7 +459,7 @@ export async function DELETE(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to remove member from coop",
+        error: safePublicError(error, "Failed to remove member from coop"),
       },
       {
         status: 500,

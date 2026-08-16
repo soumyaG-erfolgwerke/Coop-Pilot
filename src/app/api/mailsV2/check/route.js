@@ -5,6 +5,7 @@ import {
     COLLECTION_ID_MAIL_DIRECTORY,
 } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function POST(request) {
     try {
@@ -50,7 +51,7 @@ export async function POST(request) {
     } catch (error) {
 
         return NextResponse.json(
-            { success: false, error: error.message || "Failed to check mail status" },
+            { success: false, error: safePublicError(error, "Failed to check mail status") },
             { status: 500 },
         );
     }

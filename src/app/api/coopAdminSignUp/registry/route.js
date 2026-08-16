@@ -13,7 +13,13 @@ export async function GET() {
       [Query.limit(100)]
     );
 
-    return NextResponse.json({ success: true, documents: coopRecords.documents });
+    const documents = coopRecords.documents.map((record) => ({
+      name: record.name,
+      RegNumber: record.RegNumber,
+      CourtName: record.CourtName,
+      state: record.state,
+    }));
+    return NextResponse.json({ success: true, documents });
   } catch (error) {
     console.error("Error fetching coop registry:", error);
     return NextResponse.json(

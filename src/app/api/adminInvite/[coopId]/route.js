@@ -5,11 +5,15 @@ import {
   sendAdminInvitation,
 } from "@/services/onboardingServices/coopadmin/OnboardHelpers";
 import { NextResponse } from "next/server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
 
 export const POST = async (request, { params }) => {
   const { coopId } = await params;
 
   try {
+    const session = await resolveSession();
+    await requireCoopAdministration(session, coopId);
     const formData = await request.json();
 
     // Validation
@@ -65,6 +69,7 @@ export const POST = async (request, { params }) => {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error sending admin invite:", error);
     return NextResponse.json(
       { message: "Failed to send admin invitation", code: 500, ok: false },

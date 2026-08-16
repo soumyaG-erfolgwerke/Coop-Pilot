@@ -6,7 +6,8 @@ import {
   COLLECTION_ID_TICKETS,
   COLLECTION_ID_AUDITTEAM_MEMBERS,
 } from "@/lib/appwrite-server";
-import { stripInternalFields } from "@/lib/helpers/_helpers";
+import { ensureCoopAdminAccess, stripInternalFields } from "@/lib/helpers/_helpers";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // Status config
 const STATUSES = ["Issued", "InProgress", "InReview", "Completed", "Cancelled"];
@@ -16,6 +17,7 @@ const isValidStatus = (status) => STATUSES.includes(status);
 // GET /api/ticket - Get all tickets
 export async function GET() {
   try {
+    requireRole(await resolveSession(), ["superuser"]);
     const { databases } = createAdminClient();
 
     const res = await databases.listDocuments(
@@ -54,6 +56,7 @@ export async function GET() {
 
     return NextResponse.json({ success: true, tickets: ticketsWithAuditor });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error fetching tickets:", error);
     return NextResponse.json({ success: false, tickets: [] }, { status: 500 });
   }
@@ -62,6 +65,7 @@ export async function GET() {
 // POST /api/ticket - Create a new ticket
 export async function POST(request) {
   try {
+    const session = requireRole(await resolveSession(), ["superuser", "coopadmin"]);
     const {
       subject,
       scope,
@@ -88,6 +92,7 @@ export async function POST(request) {
         { status: 400 },
       );
     }
+    if (session.role === "coopadmin") await ensureCoopAdminAccess(forCoop);
 
     const { databases } = createAdminClient();
 
@@ -110,6 +115,9 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, ticket });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error creating ticket:", error);
     return NextResponse.json({ success: false, ticket: null }, { status: 500 });
   }

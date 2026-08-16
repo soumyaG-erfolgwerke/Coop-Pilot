@@ -1,54 +1,24 @@
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_COOPERATIVES,
   COLLECTION_ID_AUDIT_HISTORY,
-  appwriteFetchWithSession,
-  COLLECTION_ID_PROFILE,
 } from "@/lib/appwrite-server";
+import { requireCoopAuditAccess, requireAuditEditor } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 import {
   getAuditerIdForCoop,
   getSubAuditorIds,
 } from "@/services/auditOrgServices/getAuditorDetails";
 
-export async function getCurrentUserRole(databases) {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
-    if (!sessionCookie?.value) return null;
-
-    const { cookieValue } = JSON.parse(sessionCookie.value);
-    if (!cookieValue) return null;
-
-    const res = await appwriteFetchWithSession(cookieValue, "/account");
-    if (!res.ok) return null;
-
-    const user = await res.json();
-    const userId = user?.$id;
-    if (!userId) return null;
-
-    const profilesResult = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_PROFILE,
-      [Query.equal("userId", userId)],
-    );
-
-    if (profilesResult.documents.length === 0) return null;
-    return profilesResult.documents[0].role || null;
-  } catch (error) {
-    console.error("Error getting current user role:", error);
-    return null;
-  }
-}
-
 // GET /api/auditServices/[coopId] - Get audit data for a cooperative
 export async function GET(request, { params }) {
   try {
     const { coopId } = await params;
+    const session = await requireCoopAuditAccess(coopId);
 
     if (!coopId) {
       return NextResponse.json(
@@ -82,7 +52,7 @@ export async function GET(request, { params }) {
     const currentAuditId = coopDoc.currentAuditId || null;
     let auditData = {};
 
-    const currentUserRole = await getCurrentUserRole(databases);
+    const currentUserRole = session.role;
     if (
       currentUserRole === "coopadmin" &&
       (auditStatus === "START" ||
@@ -132,6 +102,7 @@ export async function GET(request, { params }) {
       auditStatus,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to get audit data:`, error);
     return NextResponse.json(
       { success: false, error: "Could not fetch audit data" },
@@ -144,6 +115,7 @@ export async function GET(request, { params }) {
 export async function PATCH(request, { params }) {
   try {
     const { coopId } = await params;
+    const session = await requireAuditEditor(coopId);
     const {
       auditData,
       save = false,
@@ -195,6 +167,16 @@ export async function PATCH(request, { params }) {
     const dbAuditStatus = coopDoc.auditStatus || "NOT_STARTED";
     const dbCurrentAuditId = coopDoc.currentAuditId || null;
     const lastAuditId = currentAuditId || dbCurrentAuditId;
+    if (lastAuditId) {
+      const selectedAudit = await databases.getDocument(
+        DATABASE_ID,
+        COLLECTION_ID_AUDIT_HISTORY,
+        lastAuditId,
+      );
+      if (selectedAudit.coopId !== coopId) {
+        return NextResponse.json({ success: false, error: "Audit does not belong to this cooperative" }, { status: 400 });
+      }
+    }
 
     // console.log("lastAuditId: ", lastAuditId)
 
@@ -260,7 +242,7 @@ export async function PATCH(request, { params }) {
 
       // Create Audit Log note
       try {
-        const performerRole = await getCurrentUserRole(databases);
+        const performerRole = session.role;
         if (
           performerRole &&
           ["org_admin", "auditer", "aud_E"].includes(performerRole) &&
@@ -335,7 +317,7 @@ export async function PATCH(request, { params }) {
 
       // Create Audit Log note
       try {
-        const performerRole = await getCurrentUserRole(databases);
+        const performerRole = session.role;
         if (
           performerRole &&
           ["org_admin", "auditer", "aud_E"].includes(performerRole) &&
@@ -359,6 +341,7 @@ export async function PATCH(request, { params }) {
       });
     }
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to update audit data:", error);
 
     return NextResponse.json(

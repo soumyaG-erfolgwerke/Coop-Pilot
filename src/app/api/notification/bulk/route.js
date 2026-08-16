@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
@@ -8,6 +7,9 @@ import {
   COLLECTION_ID_PROFILE,
   COLLECTION_ID_AUDITTEAM_MEMBERS,
 } from "@/lib/appwrite-server";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { boundedText, validateStrictObject } from "@/lib/validation/strict-object";
 
 // Helper to create a notification in DB
 async function createNotificationInDB(
@@ -91,11 +93,14 @@ async function getUsersByType(databases, type) {
 // Query param: ?type=admins|auditers|users|members
 export async function POST(request) {
   try {
+    const session = requireRole(await resolveSession(), ["superuser", "superadmin"]);
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "users";
 
     const body = await request.json();
-    const { message } = body;
+    const shape = validateStrictObject(body, ["message"], { maxBytes: 4096 });
+    if (!shape.ok) return NextResponse.json({ success: false, error: shape.error }, { status: 400 });
+    const message = boundedText(body.message, { min: 1, max: 2000, required: true });
 
     if (!message) {
       return NextResponse.json(
@@ -117,9 +122,9 @@ export async function POST(request) {
     }
 
     // Get current user email (optional fail-soft)
-    let userEmail = "noreply@system";
+    let userEmail = session.email || session.userId;
     try {
-      const cookieStore = await cookies();
+      const cookieStore = null;
       const sessionCookie = cookieStore.get("appwrite-session");
       if (sessionCookie?.value) {
         const { cookieValue } = JSON.parse(sessionCookie.value);
@@ -169,7 +174,7 @@ export async function POST(request) {
           return {
             ...u,
             ok: false,
-            error: err?.message || "Notification failed",
+            error: "Notification failed",
           };
         }
       }),
@@ -177,9 +182,10 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, data: notified });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error in bulk notification:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }

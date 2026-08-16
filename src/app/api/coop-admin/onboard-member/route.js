@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { Query, ID } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_ONBOARDINGLOGs,
   COLLECTION_ID_ONBOARDED_MEMBERS,
-  COLLECTION_ID_PROFILE,
   AUDIT_BUCKET_ID,
-  ENDPOINT,
-  PROJECT_ID,
 } from "@/lib/appwrite-server";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
 
 // Helper to parse CSV content safely
 function parseCSV(text) {
@@ -100,28 +101,8 @@ export async function POST(request) {
   try {
     const { databases, storage } = createAdminClient();
 
-    // 1. Authenticate user and get onboardedBy email
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-    const sessionData = JSON.parse(sessionCookie.value);
-    const adminUserId = sessionData.userId;
-
-    const profilesResult = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_PROFILE,
-      [Query.equal("userId", adminUserId)]
-    );
-    if (profilesResult.documents.length === 0) {
-      return NextResponse.json({ success: false, error: "Admin profile not found" }, { status: 404 });
-    }
-    const adminProfile = profilesResult.documents[0];
-    if (adminProfile.role !== "coopadmin") {
-      return NextResponse.json({ success: false, error: "Forbidden: Admin access required" }, { status: 403 });
-    }
-    const onboardedBy = adminProfile.contactEmail || adminProfile.email || "unknown@coop.de";
+    const session = requireRole(await resolveSession(), ["coopadmin", "superuser"]);
+    const onboardedBy = session.email;
 
     const contentType = request.headers.get("content-type") || "";
 
@@ -140,9 +121,13 @@ export async function POST(request) {
       if (!coopId) {
         return NextResponse.json({ success: false, error: "Missing coopId" }, { status: 400 });
       }
+      await ensureCoopAdminAccess(coopId);
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      await assertMalwareFree(buffer);
 
       // Parse CSV contents
-      const text = await file.text();
+      const text = buffer.toString("utf8");
       const rows = parseCSV(text);
       if (rows.length === 0) {
         return NextResponse.json({ success: false, error: "CSV file is empty or invalid" }, { status: 400 });
@@ -293,8 +278,6 @@ export async function POST(request) {
       // Only perform storage upload and logs update if we actually onboarded new members
       if (savedMembers.length > 0) {
         // Upload the CSV file to storage
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
         const uploadedFile = await storage.createFile(
           AUDIT_BUCKET_ID,
           ID.unique(),
@@ -302,7 +285,7 @@ export async function POST(request) {
         );
 
         // Construct view URL
-        bulkUrl = `${ENDPOINT}/storage/buckets/${AUDIT_BUCKET_ID}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}`;
+        bulkUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
 
         // Create a single log entry of type BULK in COLLECTION_ID_ONBOARDINGLOGs
         logDoc = await databases.createDocument(
@@ -341,6 +324,7 @@ export async function POST(request) {
       if (!coopId || !email || !name) {
         return NextResponse.json({ success: false, error: "Missing required fields (coopId, email, name)" }, { status: 400 });
       }
+      await ensureCoopAdminAccess(coopId);
 
       if (!isValidEmail(email)) {
         return NextResponse.json({ success: false, error: `Invalid email format: "${email}"` }, { status: 400 });
@@ -413,8 +397,11 @@ export async function POST(request) {
       });
     }
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error in onboard-member API route:", error);
-    return NextResponse.json({ success: false, error: error.message || "Internal server error" }, { status: 500 });
+    return NextResponse.json({ success: false, error: safePublicError(error, "Internal server error") }, { status: 500 });
   }
 }
 
@@ -427,6 +414,8 @@ export async function GET(request) {
     if (!coopId) {
       return NextResponse.json({ success: false, error: "Missing coopId" }, { status: 400 });
     }
+    requireRole(await resolveSession(), ["coopadmin", "superuser"]);
+    await ensureCoopAdminAccess(coopId);
 
     const logsResult = await databases.listDocuments(
       DATABASE_ID,
@@ -444,7 +433,10 @@ export async function GET(request) {
       data: logsResult.documents,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error fetching onboarding logs:", error);
-    return NextResponse.json({ success: false, error: error.message || "Failed to fetch logs" }, { status: 500 });
+    return NextResponse.json({ success: false, error: safePublicError(error, "Failed to fetch logs") }, { status: 500 });
   }
 }

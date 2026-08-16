@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_COOPXMEMBER, COLLECTION_ID_COOPERATIVES } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireMemberIdentity } from "@/lib/auth/membership-access";
 
 // GET /api/coop-r-member/coops-of-member?memberId= - Get coops of a member with their share totals
 export async function GET(request) {
   try {
+    const session = await resolveSession();
     const { searchParams } = new URL(request.url);
     const memberId = searchParams.get("memberId");
 
@@ -14,6 +17,7 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+    requireMemberIdentity(session, memberId);
 
     const { databases } = createAdminClient();
 
@@ -88,6 +92,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, coops: result });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to fetch coops for member:", error);
     return NextResponse.json({ success: false, coops: [] }, { status: 500 });
   }

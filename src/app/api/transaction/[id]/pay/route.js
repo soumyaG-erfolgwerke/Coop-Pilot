@@ -15,11 +15,16 @@ import {
 } from "@/lib/appwrite-server";
 import { getNewVerifiedMemberCountInternal } from "@/lib/memberService";
 import { getUpdatedHistoryJson } from "@/lib/memberHistoryService";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
 
 export async function POST(request, { params }) {
 
   //TODO: ACTUAL MOLLIE intregration coming
   try {
+    const session = requireRole(await resolveSession(), ["coopadmin", "superuser"]);
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ success: false, error: "Transaction ID is required" }, { status: 400 });
@@ -38,6 +43,14 @@ export async function POST(request, { params }) {
       return NextResponse.json({ success: false, error: "Transaction not found" }, { status: 404 });
     }
 
+    const coopId = transaction.coopId?.$id || transaction.coopId;
+    if (!coopId) return sessionErrorResponse({ status: 403 });
+    if (session.role !== "superuser") await ensureCoopAdminAccess(coopId);
+
+    if (transaction.havePaid === true && transaction.verificationStatus === "verified") {
+      return NextResponse.json({ success: true, transaction, memApplicationUrl: null });
+    }
+
     // 2. Update transaction table: havePaid -> true, verificationStatus -> "verified"
     const updatedTransaction = await databases.updateDocument(
       DATABASE_ID,
@@ -49,8 +62,7 @@ export async function POST(request, { params }) {
       }
     );
 
-    const coopId = transaction.coopId;
-    const userId = transaction.memberId;
+    const userId = transaction.memberId?.$id || transaction.memberId;
 
     // 3. Find coopXmember relationships sorted descending by $createdAt to get the latest
     const existingMembers = await databases.listDocuments(
@@ -161,7 +173,7 @@ export async function POST(request, { params }) {
         InputFile.fromBuffer(pdfBuffer, `Membership_${newMembershipId}.pdf`)
       );
 
-      memApplicationUrl = `${process.env.APPWRITE_ENDPOINT}/storage/buckets/${AVV_BUCKET_id}/files/${uploadedFile.$id}/view?project=${process.env.APPWRITE_PROJECT_ID}`;
+      memApplicationUrl = getSecureFileUrl(AVV_BUCKET_id, uploadedFile.$id);
 
       // A7. Update coopxmember document with history transition
       await databases.updateDocument(
@@ -202,9 +214,12 @@ export async function POST(request, { params }) {
 
     return NextResponse.json({ success: true, transaction: updatedTransaction, memApplicationUrl });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Payment confirmation failed:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to confirm payment" },
+      { success: false, error: safePublicError(error, "Failed to confirm payment") },
       { status: 500 }
     );
   }

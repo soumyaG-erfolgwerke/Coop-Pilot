@@ -10,6 +10,8 @@ import {
 import {
   getAuthenticatedProfile,
 } from "@/lib/helpers/_helpers";
+import { requireAuditOrgAccess } from "@/lib/auth/audit-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function PATCH(request, {params}) {
   try {
@@ -35,7 +37,7 @@ export async function PATCH(request, {params}) {
     }
 
     const { comment } = await request.json();
-    if (!comment) {
+    if (typeof comment !== "string" || comment.trim().length < 1 || comment.length > 5000) {
       return NextResponse.json(
         { success: false, error: "Comment is required" },
         { status: 400 },
@@ -53,43 +55,34 @@ export async function PATCH(request, {params}) {
     const coopId = auditHistoryResponse.coopId;
     const auditOrgId = auditHistoryResponse.auditOrgId;
 
-    const auditorResponse = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_AUDITTEAM_MEMBERS,
-      [Query.equal("email", auth.email), Query.equal("auditOrgId", auditOrgId)],
-    );
-
-    if (!auditorResponse.documents.length) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "You are not assigned to this audit organization",
-        },
-        { status: 403 },
+    let commenter;
+    if (auth.role === "org_admin") {
+      await requireAuditOrgAccess(auditOrgId);
+      commenter = { $id: auth.userId, name: auth.name || "Organization administrator", email: auth.email };
+    } else {
+      const auditorResponse = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_AUDITTEAM_MEMBERS,
+        [Query.equal("email", auth.email), Query.equal("auditOrgId", auditOrgId), Query.limit(1)],
       );
-    }
-
-    const auditorMember = auditorResponse.documents[0];
-
-    const assignedMembersResponse = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_TEAM_X_COOP,
-      [Query.equal("coopId", coopId), Query.equal("auditOrgId", auditOrgId)],
-    );
-
-    if (
-      assignedMembersResponse.total === 0 ||
-      !assignedMembersResponse.documents
-        .map((m) => m.teamMemberId)
-        .includes(auditorMember.$id)
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "You are not assigned to this audit organization",
-        },
-        { status: 403 },
+      const auditorMember = auditorResponse.documents[0];
+      if (!auditorMember?.isActive) {
+        return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      }
+      const assignedMembersResponse = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_TEAM_X_COOP,
+        [
+          Query.equal("coopId", coopId),
+          Query.equal("auditOrgId", auditOrgId),
+          Query.equal("teamMemberId", auditorMember.$id),
+          Query.limit(1),
+        ],
       );
+      if (assignedMembersResponse.total === 0) {
+        return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      }
+      commenter = auditorMember;
     }
 
     // Append the new comment to the existing comments array
@@ -97,9 +90,9 @@ export async function PATCH(request, {params}) {
     const updatedComments = [
       ...existingComments,
       JSON.stringify({
-        commenterMemberId: auditorMember.$id,
-        commenterName: auditorMember.name,
-        commenterEmail: auditorMember.email,
+        commenterMemberId: commenter.$id,
+        commenterName: commenter.name,
+        commenterEmail: commenter.email,
         comment,
         timestamp: new Date().toISOString(),
       }),
@@ -125,7 +118,7 @@ export async function PATCH(request, {params}) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to add comment",
+        error: safePublicError(error, "Failed to add comment"),
       },
       {
         status: 500,

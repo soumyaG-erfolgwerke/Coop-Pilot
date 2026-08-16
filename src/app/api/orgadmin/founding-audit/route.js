@@ -3,10 +3,11 @@ import {
   createAdminClient,
   DATABASE_ID,
 } from "@/lib/appwrite-server";
-import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
 import { z } from "zod";
+import { requireAuditOrgAccess, requireAuditStaff } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const ROLES = new Set(["org_admin", "auditer", "aud_E"]);
 
@@ -67,16 +68,13 @@ const createNewFoundingAudit = async (
  * Expects example URL: /api/orgadmin/founding-audit?orgId=6a22a9ae00335d644013
  */
 export const GET = async (req) => {
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const orgId = new URL(req.url).searchParams.get("orgId");
     if (!orgId) {
       return NextErrorJson("Audit Organization ID is required", 400);
     }
+    await requireAuditOrgAccess(orgId);
 
     const { databases } = createAdminClient();
 
@@ -84,7 +82,8 @@ export const GET = async (req) => {
 
     return NextResponse.json({ status: 200, data: result });
   } catch (error) {
-    return NextErrorJson(`[GET-ORG-AUDITS] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to fetch founding audits");
   }
 };
 
@@ -101,30 +100,28 @@ const reqSchema = z.object({
 });
 
 export const POST = async (req) => {
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
+  try {
+  const session = await requireAuditStaff();
   const parseReq = reqSchema.safeParse(await req.json());
 
   if (!parseReq.success) {
     const errorMessages = parseReq.error.errors[0].message;
     return NextErrorJson(`[CREATE-AUDIT]: ${errorMessages}`, 400);
   }
-  const { orgId, createdBy, auditName } = parseReq.data;
+  const { orgId, auditName } = parseReq.data;
 
-  try {
+    await requireAuditOrgAccess(orgId);
     const { databases } = createAdminClient();
     const result = await createNewFoundingAudit(
       databases,
       orgId,
-      createdBy,
+      session.userId,
       auditName,
     );
 
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
-    return NextErrorJson(`[CREATE-AUDIT] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to create founding audit");
   }
 };

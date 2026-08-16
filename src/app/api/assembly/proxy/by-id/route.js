@@ -133,7 +133,7 @@ export async function GET(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch assembly",
+        error: "Failed to fetch assembly",
       },
       { status: 500 },
     );

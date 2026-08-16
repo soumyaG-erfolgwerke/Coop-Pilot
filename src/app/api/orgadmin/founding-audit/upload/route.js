@@ -1,15 +1,18 @@
 import {
   createAdminClient,
-  ENDPOINT,
   FOUNDING_AUDIT_BUCKET_ID,
-  PROJECT_ID,
 } from "@/lib/appwrite-server";
-import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
 import { NextResponse } from "next/server";
-import { ID, Permission, Role } from "node-appwrite";
+import { ID } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
+import { requireAuditStaff } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { hasExpectedFileSignature } from "@/lib/files/file-signature";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
 
 const ROLES = new Set(["org_admin", "auditer", "aud_E"]);
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
 const NextErrorJson = (message, status = 500) =>
   NextResponse.json({ success: false, error: message }, { status: status });
@@ -21,16 +24,14 @@ export const uploadFileBuffer = async ({ storage, buffer, filename }) => {
   const inputFile = InputFile.fromBuffer(buffer, filename);
   const targetFileId = ID.unique();
 
-  const filePermissions = [Permission.read(Role.any())];
-
   const uploadedFile = await storage.createFile(
     FOUNDING_AUDIT_BUCKET_ID,
     targetFileId,
     inputFile,
-    filePermissions,
+    [],
   );
 
-  const fileUrl = `${ENDPOINT}/storage/buckets/${FOUNDING_AUDIT_BUCKET_ID}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}&filename=${encodeURIComponent(filename)}`;
+  const fileUrl = getSecureFileUrl(FOUNDING_AUDIT_BUCKET_ID, uploadedFile.$id);
 
   return {
     fileId: uploadedFile.$id,
@@ -39,21 +40,22 @@ export const uploadFileBuffer = async ({ storage, buffer, filename }) => {
 };
 
 export const POST = async (req) => {
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const formData = await req.formData();
     const file = formData.get("file");
 
-    if (!file || typeof file === "string") {
+    const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+    if (!file || typeof file === "string" || file.size < 1 || file.size > MAX_UPLOAD_BYTES || !allowedTypes.has(file.type)) {
       return NextErrorJson("[FILE-UPLOAD]Invalid file format.", 400);
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    if (!hasExpectedFileSignature(buffer, file.type)) {
+      return NextErrorJson("File content does not match its declared type", 400);
+    }
+    await assertMalwareFree(buffer);
 
     const { storage } = createAdminClient();
 
@@ -68,17 +70,14 @@ export const POST = async (req) => {
       { status: 201 },
     );
   } catch (error) {
-    return NextErrorJson(`[FILE-UPLOAD]: ${error.message}`, 500);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to upload file", 500);
   }
 };
 
 export const DELETE = async (req) => {
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const { searchParams } = new URL(req.url);
     const fileUrl = searchParams.get("fileUrl");
 
@@ -100,6 +99,7 @@ export const DELETE = async (req) => {
       { status: 200 },
     );
   } catch (error) {
-    return NextErrorJson(`[FILE-DELETE] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to delete file");
   }
 };

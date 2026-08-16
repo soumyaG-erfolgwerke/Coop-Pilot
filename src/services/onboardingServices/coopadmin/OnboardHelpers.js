@@ -8,6 +8,7 @@ import {
 import { getAuthenticatedProfile, getCoopById } from "@/lib/helpers/_helpers";
 import { sendInviteEmail } from "@/utils/inviteMailer";
 import { ID, Query } from "node-appwrite";
+import { createOnboardingInviteToken } from "@/lib/auth/onboarding-invite";
 
 const { databases } = createAdminClient();
 
@@ -67,13 +68,20 @@ export const sendAdminInvitation = async (inviteData) => {
     // };
 
     const coopData = await getCoopById(inviteData.coopId);
+    const token = createOnboardingInviteToken({
+      inviteId: res.$id,
+      email: inviteData.inviteEmail,
+      coopId: inviteData.coopId,
+    });
+    const baseUrl = (process.env.DEPLOYMENT_URL || "https://monujesh-cooppilot.coopos.cloud").replace(/\/$/, "");
+    const inviteLink = `${baseUrl}/assistance-onboard?email=${encodeURIComponent(inviteData.inviteEmail)}&token=${encodeURIComponent(token)}`;
 
     if (res) {
       try {
         const emailRes = await sendInviteEmail(
           inviteData.inviteEmail,
           coopData.name,
-          "demo.coop-os.de/assistance-onboard",
+          inviteLink,
           "Easy Coop",
           inviteData.inviteFullName,
           coopData.RegNumber,

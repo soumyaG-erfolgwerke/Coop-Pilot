@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_AUDITCOMMENTS } from "@/lib/appwrite-server";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 // GET /api/auditServices/comment?coopid=xxx - Get comments for a cooperative
 export async function GET(request) {
@@ -14,6 +16,7 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+    await requireCoopAuditAccess(coopid);
 
     const { databases } = createAdminClient();
 
@@ -38,6 +41,9 @@ export async function GET(request) {
       comments,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error fetching comments:", error);
     return NextResponse.json(
       { success: false, error: "Could not fetch comments" },
@@ -49,14 +55,15 @@ export async function GET(request) {
 // POST /api/auditServices/comment - Add a new comment
 export async function POST(request) {
   try {
-    const { coopid, commentText, submittedBy, submissionType } = await request.json();
+    const { coopid, commentText, submissionType } = await request.json();
 
-    if (!coopid || !commentText || !submittedBy || !submissionType) {
+    if (!coopid || typeof commentText !== "string" || !commentText.trim() || commentText.length > 5000 || !submissionType) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
       );
     }
+    const session = await requireCoopAuditAccess(coopid);
 
     const { databases } = createAdminClient();
     const timestamp = new Date().toISOString();
@@ -70,12 +77,15 @@ export async function POST(request) {
         commentArray: commentText,
         timestamp,
         submissionType,
-        submittedBy,
+        submittedBy: session.email || session.userId,
       }
     );
 
     return NextResponse.json({ success: true, comment: newDoc });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error adding new comment:", error);
     return NextResponse.json(
       { success: false, error: "Could not add comment" },

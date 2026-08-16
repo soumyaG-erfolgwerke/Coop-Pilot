@@ -6,6 +6,7 @@ import {
   COLLECTION_ID_ASSEMBLY_VOTES,
 } from "@/lib/appwrite-server";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function POST(request) {
   try {
@@ -25,7 +26,7 @@ export async function POST(request) {
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID_ASSEMBLY_VOTES,
-      [Query.equal("assemblyId", assemblyId), Query.limit(200)],
+      [Query.equal("assemblyId", assemblyId), Query.equal("coopId", coopId), Query.limit(200)],
     );
 
     const updates = await Promise.all(
@@ -61,7 +62,7 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to close polls" },
+      { success: false, error: safePublicError(error, "Failed to close polls") },
       { status: 500 },
     );
   }

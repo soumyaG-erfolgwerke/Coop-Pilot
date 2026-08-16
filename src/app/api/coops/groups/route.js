@@ -11,12 +11,16 @@ import {
 import { ID, Query } from "node-appwrite";
 import { createAuditLog } from "@/lib/auditLogService";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // create group + add member in the group
 export async function POST(req) {
   const { databases } = createAdminClient();
 
   try {
+    const session = await resolveSession();
     const body = await req.json();
 
     const {
@@ -26,14 +30,40 @@ export async function POST(req) {
       isAllMembers = false,
     } = body;
 
-    if (!name || !coopId ) {
+    if (
+      typeof name !== "string" || !name.trim() || name.length > 120 ||
+      typeof coopId !== "string" || !coopId ||
+      !Array.isArray(members) || members.length > 1000 ||
+      members.some((id) => typeof id !== "string" || !id || id.length > 100)
+    ) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 },
       );
     }
 
-    const auth = await ensureCoopAdminAccess(coopId);
+    await requireCoopAdministration(session, coopId);
+    const auth = { userId: session.userId };
+
+    if (!isAllMembers && members.length > 0) {
+      const requestedMembers = [...new Set(members)];
+      const membershipResult = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_TRANSACTION,
+        [
+          Query.equal("coopId", coopId),
+          Query.equal("memberId", requestedMembers),
+          Query.limit(Math.min(1000, requestedMembers.length)),
+        ],
+      );
+      const validMembers = new Set(membershipResult.documents.map((item) => item.memberId));
+      if (requestedMembers.some((id) => !validMembers.has(id))) {
+        return NextResponse.json(
+          { success: false, error: "Every selected member must belong to this cooperative" },
+          { status: 400 },
+        );
+      }
+    }
 
     const existing = await databases.listDocuments(
       DATABASE_ID,
@@ -57,7 +87,7 @@ export async function POST(req) {
       COLLECTION_ID_GROUPS,
       ID.unique(),
       {
-        name,
+        name: name.trim(),
         coopId,
         createdBy: auth.userId,
         isAllMembers,
@@ -135,12 +165,13 @@ export async function POST(req) {
       group,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Create Group Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to create group",
+        error: safePublicError(error, "Failed to create group"),
       },
       { status: 500 },
     );
@@ -155,12 +186,14 @@ export async function GET(req) {
   const coopId = searchParams.get("coopId");
 
   try {
+    const session = await resolveSession();
     if (!coopId) {
       return NextResponse.json(
         { success: false, error: "coopId is required" },
         { status: 400 },
       );
     }
+    await requireCoopAdministration(session, coopId);
 
     const groupsRes = await databases.listDocuments(
       DATABASE_ID,
@@ -208,12 +241,13 @@ export async function GET(req) {
       groups: groupsWithCount,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Fetch Groups Error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch groups",
+        error: safePublicError(error, "Failed to fetch groups"),
       },
       { status: 500 },
     );
@@ -228,12 +262,15 @@ export async function DELETE(req) {
   const groupId = searchParams.get("groupId");
 
   try {
+    const session = await resolveSession();
     if (!groupId) {
       return NextResponse.json(
         { success: false, error: "groupId required" },
         { status: 400 },
       );
     }
+    const group = await databases.getDocument(DATABASE_ID, COLLECTION_ID_GROUPS, groupId);
+    await requireCoopAdministration(session, group.coopId);
 
     const membersRes = await databases.listDocuments(
       DATABASE_ID,
@@ -270,10 +307,11 @@ export async function DELETE(req) {
       message: "Group deleted",
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Delete Group Error:", error);
 
     return NextResponse.json(
-      { success: false, error: error.message || "Delete failed" },
+      { success: false, error: safePublicError(error, "Delete failed") },
       { status: 500 },
     );
   }
@@ -287,21 +325,52 @@ export async function PUT(req) {
   const groupId = searchParams.get("groupId");
 
   try {
+    const session = await resolveSession();
     if (!groupId) {
       return NextResponse.json(
         { success: false, error: "groupId required" },
         { status: 400 },
       );
     }
+    const group = await databases.getDocument(DATABASE_ID, COLLECTION_ID_GROUPS, groupId);
+    await requireCoopAdministration(session, group.coopId);
 
     const body = await req.json();
     const { name, members = [], isAllMembers = false } = body;
+
+    if (
+      typeof name !== "string" || !name.trim() || name.length > 120 ||
+      !Array.isArray(members) || members.length > 1000 ||
+      members.some((id) => typeof id !== "string" || !id || id.length > 100)
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid group data" }, { status: 400 });
+    }
+
+    const uniqueMembers = [...new Set(members)];
+    if (!isAllMembers && uniqueMembers.length > 0) {
+      const membershipResult = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_TRANSACTION,
+        [
+          Query.equal("coopId", group.coopId),
+          Query.equal("memberId", uniqueMembers),
+          Query.limit(Math.min(1000, uniqueMembers.length)),
+        ],
+      );
+      const validMembers = new Set(membershipResult.documents.map((item) => item.memberId));
+      if (uniqueMembers.some((id) => !validMembers.has(id))) {
+        return NextResponse.json(
+          { success: false, error: "Every selected member must belong to this cooperative" },
+          { status: 400 },
+        );
+      }
+    }
 
     const updated = await databases.updateDocument(
       DATABASE_ID,
       COLLECTION_ID_GROUPS,
       groupId,
-      { name, isAllMembers },
+      { name: name.trim(), isAllMembers },
     );
 
     const existingRes = await databases.listDocuments(
@@ -314,8 +383,6 @@ export async function PUT(req) {
     );
 
     const existing = existingRes.documents;
-
-    const uniqueMembers = [...new Set(members)];
 
     try {
       if (!isAllMembers && uniqueMembers.length > 0) {
@@ -350,10 +417,11 @@ export async function PUT(req) {
       group: updated,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Update Group Error:", error);
 
     return NextResponse.json(
-      { success: false, error: error.message || "Update failed" },
+      { success: false, error: safePublicError(error, "Update failed") },
       { status: 500 },
     );
   }

@@ -8,6 +8,7 @@ import {
 
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 import {
   ensureCoopAdminAccess,
@@ -134,7 +135,7 @@ export async function GET(req) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: safePublicError(error),
       },
       { status: 500 },
     );

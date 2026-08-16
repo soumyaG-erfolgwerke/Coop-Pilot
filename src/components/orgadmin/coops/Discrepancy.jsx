@@ -110,7 +110,7 @@ const Discrepancy = ({ auditOrgId }) => {
       case "resolved":
         return "bg-green-100 text-green-700";
 
-      case "partially_closed":
+      case "partially_resolved":
         return "bg-yellow-100 text-yellow-700";
 
       case "open":
@@ -221,12 +221,16 @@ const Discrepancy = ({ auditOrgId }) => {
 
                   {/* Actions */}
                   <td className="flex items-center justify-center px-4 py-3">
-                    <button
-                      onClick={() => openUpdateDrawer(item)}
-                      className="px-3 py-1 text-sm border rounded-md hover:bg-gray-50"
-                    >
-                      Update Status
-                    </button>
+                    {isSubAuditor ? (
+                      <span className="text-sm text-gray-500">View only</span>
+                    ) : (
+                      <button
+                        onClick={() => openUpdateDrawer(item)}
+                        className="px-3 py-1 text-sm border rounded-md hover:bg-gray-50"
+                      >
+                        Update Status
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -257,11 +261,18 @@ const Discrepancy = ({ auditOrgId }) => {
             onClose={closeDrawer}
           />
         ) : (
-          <UpdateStatusForm
-            discrepancy={selectedDiscrepancy}
-            onSubmit={handleStatusUpdate}
-            onClose={closeDrawer}
-          />
+          isSubAuditor ? (
+            <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+              <p>{selectedDiscrepancy?.description}</p>
+              <p>Status: {selectedDiscrepancy?.status}</p>
+            </div>
+          ) : (
+            <UpdateStatusForm
+              discrepancy={selectedDiscrepancy}
+              onSubmit={handleStatusUpdate}
+              onClose={closeDrawer}
+            />
+          )
         )}
       </ResponsiveDrawer>
     </div>

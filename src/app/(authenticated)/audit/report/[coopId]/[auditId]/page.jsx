@@ -1,7 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import createDOMPurify from "dompurify";
 import { useParams, useRouter } from "next/navigation";
+
+let reportPurifier;
+function sanitizeReportHtml(html) {
+  if (typeof window === "undefined") return "";
+  reportPurifier ||= createDOMPurify(window);
+  return reportPurifier.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["script", "iframe", "object", "embed", "form"],
+    FORBID_ATTR: ["srcdoc"],
+  });
+}
 import {
   FileText,
   Save,
@@ -3666,7 +3678,9 @@ export default function ReportPage() {
                       {/* Rendered HTML Body Content */}
                       <div
                         className="flex-1 leading-relaxed prose-sm prose text-justify text-gray-800 break-words select-text max-w-none"
-                        dangerouslySetInnerHTML={{ __html: pageHtml }}
+                        dangerouslySetInnerHTML={{
+                          __html: sanitizeReportHtml(pageHtml),
+                        }}
                       />
 
                       {/* Page Footer */}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_COOPERATIVES } from "@/lib/appwrite-server";
+import { resolveSession, requireRole, sessionErrorResponse } from "@/lib/auth/session";
 
 const placeholderColors = [
   "2ECC71", "3498DB", "E74C3C", "9B59B6", "F1C40F", "1ABC9C", "E67E22",
@@ -11,13 +12,16 @@ const defaultDescription = "[Company Name] is a forward-thinking organization co
 // GET /api/coop-services/assigned?auditorId=... - Get coops assigned to auditor
 export async function GET(request) {
   try {
+    const session = await resolveSession();
+    requireRole(session, ["auditer", "aud_E", "superuser", "superadmin"]);
     const { searchParams } = new URL(request.url);
-    const auditorId = searchParams.get("auditorId");
+    const requestedAuditorId = searchParams.get("auditorId");
+    const auditorId = session.teamMemberId || session.userId;
 
-    if (!auditorId) {
+    if (requestedAuditorId && requestedAuditorId !== auditorId && !["superuser", "superadmin"].includes(session.role)) {
       return NextResponse.json(
-        { success: false, error: "auditorId is required" },
-        { status: 400 }
+        { success: false, error: "Forbidden" },
+        { status: 403 }
       );
     }
 
@@ -56,6 +60,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, coops: formattedCoops });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Failed to fetch assigned cooperatives:", error);
     return NextResponse.json({ success: false, coops: [] }, { status: 500 });
   }

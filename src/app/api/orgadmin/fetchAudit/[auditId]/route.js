@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureAuditAccess } from "@/lib/helpers/_orgAuxHelper";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export const GET = async (request, { params }) => {
   try {
@@ -24,7 +25,7 @@ export const GET = async (request, { params }) => {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch audit",
+        error: safePublicError(error, "Failed to fetch audit"),
       },
       { status: 500 },
     );

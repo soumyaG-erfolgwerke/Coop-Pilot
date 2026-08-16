@@ -14,7 +14,7 @@ export async function POST(request) {
 
     const { registryNumber } = body;
 
-    if (!registryNumber) {
+    if (typeof registryNumber !== "string" || !registryNumber.trim() || registryNumber.length > 100) {
       return NextResponse.json(
         {
           success: false,
@@ -29,7 +29,7 @@ export async function POST(request) {
     const existingCoop = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID_COOPERATIVES,
-      [Query.equal("RegNumber", registryNumber)],
+      [Query.equal("RegNumber", registryNumber.trim()), Query.limit(1)],
     );
 
     if (existingCoop.documents.length > 0) {
@@ -42,7 +42,7 @@ export async function POST(request) {
         coop: {
           name: coop.name,
 
-          adminEmail: coop.admins?.[0] || null,
+          adminEmail: maskEmail(coop.admins?.[0]),
         },
       });
     }
@@ -55,9 +55,16 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to check cooperative",
+        error: "Failed to check cooperative",
       },
       { status: 500 },
     );
   }
+}
+
+function maskEmail(value) {
+  if (typeof value !== "string") return null;
+  const [local, domain] = value.split("@");
+  if (!local || !domain) return null;
+  return `${local.slice(0, 1)}***@${domain}`;
 }

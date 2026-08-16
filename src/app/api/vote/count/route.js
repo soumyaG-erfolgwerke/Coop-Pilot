@@ -5,20 +5,24 @@ import {
   DATABASE_ID,
   COLLECTION_ID_ASSEMBLY_VOTES,
 } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopParticipant } from "@/lib/auth/vote-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // GET - Get active polls count by coop ID
 export async function GET(request) {
   try {
+    const session = await resolveSession();
     const { searchParams } = new URL(request.url);
     const coopId = searchParams.get("coopId");
-    const currentTime = searchParams.get("currentTime");
 
-    if (!coopId || !currentTime) {
+    if (!coopId) {
       return NextResponse.json(
         { success: false, error: "Missing required query parameters" },
         { status: 400 }
       );
     }
+    await requireCoopParticipant(session, coopId);
 
     const { databases } = createAdminClient();
 
@@ -28,7 +32,7 @@ export async function GET(request) {
 
     const activePolls = [];
     const criticalPolls = [];
-    const now = new Date(currentTime);
+    const now = new Date();
 
     for (const doc of response.documents) {
       const endTime = doc.endTime ? new Date(doc.endTime) : null;
@@ -61,9 +65,12 @@ export async function GET(request) {
       },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error getting polls count:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 }
     );
   }

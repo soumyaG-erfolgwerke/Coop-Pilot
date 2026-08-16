@@ -1,4 +1,5 @@
 import winston from 'winston';
+import { redactLogValue } from '../redaction.js';
 
 const { combine, timestamp, colorize, printf, errors } = winston.format;
 
@@ -35,7 +36,7 @@ const devFormat = printf(({ level, message, timestamp, category, eventType, meta
   const evtType = eventType ? `${eventType}` : '';
   const actor   = actorId   ? ` [actor:${actorId}]`  : '';
   const reqId   = requestId ? ` [req:${requestId?.slice(0, 8)}]` : '';
-  const meta    = metadata  ? `\n   └─ ${JSON.stringify(metadata, null, 2).replace(/\n/g, '\n      ')}` : '';
+  const meta    = metadata  ? `\n   └─ ${JSON.stringify(redactLogValue(metadata), null, 2).replace(/\n/g, '\n      ')}` : '';
 
   return `[${time}] ${level.padEnd(8)} ${(cat + evtType).padEnd(30)} │  ${message}${actor}${reqId}${meta}`;
 });

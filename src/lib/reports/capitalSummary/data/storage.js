@@ -1,4 +1,5 @@
-import { createAdminClient, ENDPOINT, PROJECT_ID, DATABASE_ID, COLLECTION_ID_COOP_REPORTS, REPORTS_BUCKET_ID } from "@/lib/appwrite-server";
+import { createAdminClient, DATABASE_ID, COLLECTION_ID_COOP_REPORTS, REPORTS_BUCKET_ID } from "@/lib/appwrite-server";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
 import { listAllDocuments } from "@/lib/appwritePagination";
 import { ID, Query, Permission, Role } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
@@ -31,7 +32,7 @@ export const uploadFileBuffer = async ({ buffer, filename }) => {
     filePermissions
   );
 
-  const fileUrl = `${ENDPOINT}/storage/buckets/${REPORTS_BUCKET_ID}/files/${uploadedFile.$id}/view?project=${PROJECT_ID}`;
+  const fileUrl = getSecureFileUrl(REPORTS_BUCKET_ID, uploadedFile.$id);
 
   return {
     fileId: uploadedFile.$id,

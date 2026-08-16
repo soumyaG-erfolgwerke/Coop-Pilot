@@ -7,30 +7,53 @@ import {
 } from "@/lib/appwrite-server";
 import { NextResponse } from "next/server";
 import { Query, ID } from "node-appwrite";
+import {
+  requireRole,
+  resolveSession,
+  sessionErrorResponse,
+} from "@/lib/auth/session";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
+import { InputFile } from "node-appwrite/file";
+import { safePublicError } from "@/lib/api/safe-public-error";
+
+const PROFILE_REVIEW_ROLES = ["superuser", "superadmin"];
+const PROFILE_REQUEST_LIMITS = {
+  street: 150,
+  houseNo: 30,
+  add: 250,
+  postalCode: 20,
+  location: 120,
+  telephoneNo: 40,
+};
+
+function sanitizeRequestedProfileData(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const unknown = Object.keys(value).filter((key) => !(key in PROFILE_REQUEST_LIMITS));
+  if (unknown.length) return null;
+  const sanitized = {};
+  for (const [key, limit] of Object.entries(PROFILE_REQUEST_LIMITS)) {
+    if (value[key] === undefined || value[key] === null || value[key] === "") continue;
+    if (typeof value[key] !== "string" || value[key].length > limit) return null;
+    sanitized[key] = value[key].trim();
+  }
+  return Object.keys(sanitized).length ? sanitized : null;
+}
 
 export async function GET(req) {
   try {
+    const session = await resolveSession();
     const { databases } = createAdminClient();
 
     const { searchParams } = new URL(req.url);
 
-    const userId = searchParams.get("userId");
-    const isAdmin = searchParams.get("admin");
+    const isAdmin = searchParams.get("admin") === "true";
 
     let queries = [Query.orderDesc("$createdAt")];
 
-    if (!isAdmin) {
-      if (!userId) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "userId required",
-          },
-          { status: 400 },
-        );
-      }
-
-      queries.push(Query.equal("userId", userId));
+    if (isAdmin) {
+      requireRole(session, PROFILE_REVIEW_ROLES);
+    } else {
+      queries.push(Query.equal("userId", session.userId));
     }
 
     const res = await databases.listDocuments(
@@ -81,10 +104,13 @@ export async function GET(req) {
       data: requests,
     });
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) {
+      return sessionErrorResponse(err);
+    }
     return NextResponse.json(
       {
         success: false,
-        error: err.message,
+        error: "Failed to load profile requests",
       },
       { status: 500 },
     );
@@ -94,16 +120,19 @@ export async function GET(req) {
 // POST - Create new profile update request
 export async function POST(req) {
   try {
+    const session = await resolveSession();
     const { databases, storage } = createAdminClient();
     const formData = await req.formData();
-    const userId = formData.get("userId");
     const requestedDataRaw = formData.get("requestedData");
     const description = formData.get("description");
+    if (description !== null && (typeof description !== "string" || description.length > 2000)) {
+      return NextResponse.json({ success: false, error: "Invalid description" }, { status: 422 });
+    }
 
     // Checking proper userId and updation data
-    if (!userId || !requestedDataRaw) {
+    if (!requestedDataRaw) {
       return NextResponse.json(
-        { success: false, error: "Missing userId or data" },
+        { success: false, error: "Missing requested data" },
         { status: 400 },
       );
     }
@@ -123,7 +152,7 @@ export async function POST(req) {
     const profileRes = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID_PROFILE,
-      [Query.equal("userId", userId)],
+      [Query.equal("userId", session.userId), Query.limit(1)],
     );
 
     if (!profileRes.documents.length) {
@@ -134,28 +163,8 @@ export async function POST(req) {
     }
 
     const profileDoc = profileRes.documents[0];
-    // Only allowed editable fields
-    const allowedFields = [
-      "street",
-      "houseNo",
-      "add",
-      "postalCode",
-      "location",
-      "telephoneNo",
-    ];
-    const filteredData = {};
-
-    for (const key of allowedFields) {
-      if (
-        requestedData[key] !== undefined &&
-        requestedData[key] !== null &&
-        requestedData[key] !== ""
-      ) {
-        filteredData[key] = requestedData[key];
-      }
-    }
-
-    if (!Object.keys(filteredData).length) {
+    const filteredData = sanitizeRequestedProfileData(requestedData);
+    if (!filteredData) {
       return NextResponse.json(
         { success: false, error: "No valid fields to update" },
         { status: 400 },
@@ -184,11 +193,14 @@ export async function POST(req) {
         );
       }
 
+      const buffer = Buffer.from(await file.arrayBuffer());
+      await assertMalwareFree(buffer);
+
       // Upload file
       const uploaded = await storage.createFile(
         AUDIT_BUCKET_ID,
         ID.unique(),
-        file,
+        InputFile.fromBuffer(buffer, file.name),
       );
       uploadedFileId = uploaded.$id;
     }
@@ -200,7 +212,7 @@ export async function POST(req) {
         COLLECTION_ID_PROFILE_UPDATE_REQUESTS,
         ID.unique(),
         {
-          userId,
+          userId: session.userId,
           profileId: profileDoc.$id,
           requestedData: JSON.stringify(filteredData),
           description: description || "",
@@ -222,9 +234,12 @@ export async function POST(req) {
       throw dbError;
     }
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) {
+      return sessionErrorResponse(err);
+    }
     console.error(err);
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, error: safePublicError(err, "Failed to submit profile update request") },
       { status: 500 },
     );
   }
@@ -233,8 +248,9 @@ export async function POST(req) {
 // PATCH - Admin api to "APPROVE"/"REJECT" the request
 export async function PATCH(req) {
   try {
+    const session = requireRole(await resolveSession(), PROFILE_REVIEW_ROLES);
     const body = await req.json();
-    const { requestId, action, reason, adminId } = body;
+    const { requestId, action, reason } = body;
 
     if (!requestId || !action) {
       return NextResponse.json(
@@ -272,7 +288,10 @@ export async function PATCH(req) {
       );
     }
 
-    const requestedData = JSON.parse(requestDoc.requestedData || "{}");
+    const requestedData = sanitizeRequestedProfileData(JSON.parse(requestDoc.requestedData || "{}"));
+    if (!requestedData) {
+      return NextResponse.json({ success: false, error: "Stored request data is invalid" }, { status: 422 });
+    }
 
     //APPROVE request
     if (action === "APPROVE") {
@@ -303,7 +322,7 @@ export async function PATCH(req) {
           {
             status: "APPROVED",
             reviewedAt: new Date().toISOString(),
-            reviewedBy: adminId || "admin",
+            reviewedBy: session.userId,
           },
         );
       } catch (statusUpdateError) {
@@ -333,15 +352,18 @@ export async function PATCH(req) {
           status: "REJECTED",
           reason: reason || "",
           reviewedAt: new Date().toISOString(),
-          reviewedBy: adminId || "admin",
+          reviewedBy: session.userId,
         },
       );
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) {
+      return sessionErrorResponse(err);
+    }
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, error: "Failed to process profile request" },
       { status: 500 },
     );
   }

@@ -13,6 +13,7 @@ import {
   writeSettingsAndAudit,
 } from "@/lib/helpers/_helpers";
 import { getSubscription } from "@/lib/stripe/utils";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function GET(request, { params }) {
   try {
@@ -82,7 +83,7 @@ export async function GET(request, { params }) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to get settings" },
+      { success: false, error: safePublicError(error, "Failed to get settings") },
       { status: 500 },
     );
   }
@@ -198,7 +199,7 @@ export async function PATCH(request, { params }) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to update settings" },
+      { success: false, error: safePublicError(error, "Failed to update settings") },
       { status: 500 },
     );
   }
@@ -230,7 +231,7 @@ export async function DELETE(request, { params }) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to delete settings" },
+      { success: false, error: safePublicError(error, "Failed to delete settings") },
       { status: 500 }
     );
   }

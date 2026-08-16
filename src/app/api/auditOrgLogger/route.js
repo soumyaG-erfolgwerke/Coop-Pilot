@@ -1,52 +1,20 @@
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_AUDIT_ORG_LOGS,
-  COLLECTION_ID_PROFILE,
-  appwriteFetchWithSession,
 } from "@/lib/appwrite-server";
 import { stripInternalFields } from "@/lib/helpers/_helpers";
-
-// Helper to retrieve the current user's role from their session profile
-async function getCurrentUserRole(databases) {
-  try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
-    if (!sessionCookie?.value) return null;
-
-    const { cookieValue } = JSON.parse(sessionCookie.value);
-    if (!cookieValue) return null;
-
-    const res = await appwriteFetchWithSession(cookieValue, "/account");
-    if (!res.ok) return null;
-
-    const user = await res.json();
-    const userId = user?.$id;
-    if (!userId) return null;
-
-    const profilesResult = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID_PROFILE,
-      [Query.equal("userId", userId)],
-    );
-
-    if (profilesResult.documents.length === 0) return null;
-    return profilesResult.documents[0].role || null;
-  } catch (error) {
-    console.error("Error getting current user role:", error);
-    return null;
-  }
-}
+import { requireAuditOrgAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { boundedId, boundedText, validateStrictObject } from "@/lib/validation/strict-object";
 
 // GET /api/auditOrgLogger - Get all log notes for an audit org based on role access
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const auditOrgId = searchParams.get("auditOrgId");
-    let role = searchParams.get("role");
 
     if (!auditOrgId) {
       return NextResponse.json(
@@ -56,11 +24,8 @@ export async function GET(request) {
     }
 
     const { databases } = createAdminClient();
-
-    // If role is not passed from the client, fetch it from session
-    if (!role) {
-      role = await getCurrentUserRole(databases);
-    }
+    const session = await requireAuditOrgAccess(auditOrgId);
+    const role = session.role;
 
     const queries = [
       Query.equal("auditOrgId", auditOrgId),
@@ -86,7 +51,7 @@ export async function GET(request) {
 
     // pagination
     const page = Math.max(1, parseInt(searchParams.get("page")) || 1);
-    const limit = Math.max(1, parseInt(searchParams.get("limit")) || 10);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit")) || 10));
 
     const offset = (page - 1) * limit;
 
@@ -104,6 +69,7 @@ export async function GET(request) {
     // console.log("Fetched audit org logs:", logs);
     return NextResponse.json({ success: true, documents: logs, total: list.total });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error fetching audit org logs:", error);
     return NextResponse.json(
       { success: false, error: "Could not fetch audit org logs" },
@@ -118,8 +84,10 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { auditOrgId, logNote } = body;
-    let role = body.role;
+    const shape = validateStrictObject(body, ["auditOrgId", "logNote"], { maxBytes: 4096 });
+    if (!shape.ok) return NextResponse.json({ success: false, error: shape.error }, { status: 400 });
+    const auditOrgId = boundedId(body.auditOrgId);
+    const logNote = boundedText(body.logNote, { min: 1, max: 2000, required: true });
 
     if (!auditOrgId || !logNote) {
       return NextResponse.json(
@@ -129,19 +97,8 @@ export async function POST(request) {
     }
 
     const { databases } = createAdminClient();
-
-    // Resolve user's role from their session if not passed
-    if (!role) {
-      role = await getCurrentUserRole(databases);
-    }
-
-    if (!role) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: User role not found" },
-        { status: 403 },
-      );
-    }
-
+    const session = await requireAuditOrgAccess(auditOrgId);
+    const role = session.role;
     const doc = {
       auditOrgId,
       logNote,
@@ -157,6 +114,7 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, document: created });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error adding audit org log note:", error);
     return NextResponse.json(
       { success: false, error: "Could not add audit org log note" },

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_COOPERATIVES } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { requireCoopMembership } from "@/lib/auth/membership-access";
 
 const placeholderColors = [
   "2ECC71", "3498DB", "E74C3C", "9B59B6", "F1C40F", "1ABC9C", "E67E22",
@@ -10,6 +13,7 @@ const defaultDescription = "[Company Name] is a forward-thinking organization co
 // GET /api/coop-services/[id] - Get coop by ID
 export async function GET(request, { params }) {
   try {
+    const session = await resolveSession();
     const { id } = await params;
 
     if (!id) {
@@ -26,6 +30,18 @@ export async function GET(request, { params }) {
       COLLECTION_ID_COOPERATIVES,
       id
     );
+    let includeSensitive = ["superuser", "superadmin"].includes(session.role);
+    if (!includeSensitive) {
+      try {
+        await requireCoopMembership(session, id);
+        includeSensitive = session.role === "coopadmin";
+      } catch {
+        try {
+          await requireCoopAuditAccess(id);
+          includeSensitive = true;
+        } catch {}
+      }
+    }
 
     const colorIndex = doc.name.length % placeholderColors.length;
     const selectedColor = placeholderColors[colorIndex];
@@ -43,18 +59,21 @@ export async function GET(request, { params }) {
       banner: doc.bannerUrl,
       logo: doc.logo || `https://placehold.co/40x40/${selectedColor}/FFFFFF?text=${doc.name.charAt(0).toUpperCase()}`,
       description: doc.about || defaultDescription,
-      adminEmails: doc.admins,
+      ...(includeSensitive ? {
+        adminEmails: doc.admins,
+        iban: doc.ibanNumber || null,
+        bic: doc.bicNumber || null,
+        ibanNumber: doc.ibanNumber || null,
+        bicNumber: doc.bicNumber || null,
+      } : {}),
       auditStatus: doc.auditStatus,
-      iban: doc.ibanNumber || null,
-      bic: doc.bicNumber || null,
-      ibanNumber: doc.ibanNumber || null,
-      bicNumber: doc.bicNumber || null,
       isLive: doc.isLive ?? doc.make_live ?? false,
       make_live: doc.isLive ?? doc.make_live ?? false,
     };
 
     return NextResponse.json({ success: true, coop: formattedCoop });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(`Failed to fetch cooperative:`, error);
     return NextResponse.json({ success: false, coop: null }, { status: 500 });
   }

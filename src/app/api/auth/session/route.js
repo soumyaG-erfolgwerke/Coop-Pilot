@@ -1,139 +1,60 @@
 import { NextResponse } from "next/server";
-import { Query } from "node-appwrite";
 import { cookies } from "next/headers";
 import {
-  createAdminClient,
-  appwriteFetchWithSession,
-  DATABASE_ID,
-  COLLECTION_ID_PROFILE,
-  COLLECTION_ID_AUDITTEAM_MEMBERS,
-} from "@/lib/appwrite-server";
+  AuthorizationError,
+  SESSION_COOKIE_NAME,
+  resolveSession,
+} from "@/lib/auth/session";
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
+    const session = await resolveSession();
+    const profile = session.profile;
 
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ user: null }, { status: 401 });
-    }
-
-    // Parse session data (contains cookieValue and userId)
-    let sessionData;
-    try {
-      sessionData = JSON.parse(sessionCookie.value);
-    } catch (parseError) {
-      // Invalid session data, clear cookie
-      cookieStore.delete("appwrite-session");
-      return NextResponse.json({ user: null }, { status: 401 });
-    }
-
-    // Support both old cookie format {secret, userId} and new {cookieValue, userId}
-    const cookieValue = sessionData.cookieValue || sessionData.secret || null;
-
-    // Use Cookie-based fetch to get account info (phone, verification status)
-    let accountInfo = {};
-
-    let userLabels = [];
-    try {
-      if (cookieValue) {
-        const res = await appwriteFetchWithSession(cookieValue, "/account");
-        if (res.ok) {
-          const accountData = await res.json();
-          userLabels = accountData.labels || [];
-          accountInfo = {
-            email: accountData.email || null,
-            phone: accountData.phone || null,
-            emailVerification: accountData.emailVerification || false,
-            phoneVerification: accountData.phoneVerification || false,
-          };
+    const user = session.isTeamMember
+      ? {
+          $id: session.userId,
+          email: session.email,
+          phone: session.account.phone || null,
+          emailVerification: session.account.emailVerification || false,
+          phoneVerification: session.account.phoneVerification || false,
+          name: profile.name || "",
+          role: session.role,
+          auditOrgId: session.auditOrgId,
+          empId: profile.empId,
+          isActive: profile.isActive,
+          createdAt: profile.$createdAt,
+          teamMemberId: session.teamMemberId,
         }
-      }
-    } catch (accountError) {
-      console.error("Failed to fetch account info:", accountError.message);
-    }
+      : {
+          $id: session.userId,
+          userId: session.userId,
+          email: session.email,
+          phone: session.account.phone || null,
+          emailVerification: session.account.emailVerification || false,
+          phoneVerification: session.account.phoneVerification || false,
+          name: `${profile.FirstName || ""} ${profile.LastName || ""}`.trim(),
+          role: session.role,
+          status: profile.status,
+          isVerified: profile.isVerified,
+          telephoneNo: profile.telephoneNo || null,
+        };
 
-    const isTeamMember = userLabels.includes("teamMember");
-
-    // Use admin client for database access
-    const { databases } = createAdminClient();
-
-    // User info from stored session
-    const currentUser = {
-      $id: sessionData.userId,
-    };
-
-    let userProfile = null;
-    try {
-      if (isTeamMember) {
-        const profileResult = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_ID_AUDITTEAM_MEMBERS,
-          [Query.equal("email", accountInfo.email)],
-        );
-
-        if (profileResult.documents.length > 0) {
-          if (profileResult.documents[0].isActive === false) {
-            return NextResponse.json(
-              {
-                error:
-                  "Your account is inactive. Please contact your administrator.",
-              },
-              { status: 403 },
-            );
-          }
-
-          const prf = profileResult.documents[0];
-          userProfile = {
-            name: prf.name || "",
-            email: prf.email || "",
-            role: prf.role,
-            auditOrgId: prf.auditOrgId,
-            empId: prf.empId,
-            isActive: prf.isActive,
-            createdAt: prf.$createdAt,
-            teamMemberId: prf.$id,
-          };
-
-        }
-      } else {
-        const profileResult = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTION_ID_PROFILE,
-          [Query.equal("userId", sessionData.userId)],
-        );
-
-        if (profileResult.documents.length > 0) {
-          const prf = profileResult.documents[0];
-          userProfile = {
-            name: `${prf.FirstName} ${prf.LastName}`,
-            email: prf.contactEmail,
-            role: prf.role,
-            status: prf.status,
-            userId: prf.userId,
-            isVerified: prf.isVerified,
-            telephoneNo: prf.telephoneNo || null,
-          };
-        }
-      }
-    } catch (profileError) {
-      console.error("Failed to fetch profile:", profileError.message);
-    }
-
-    // Return merged user data (account info + profile)
-    const mergedUser = {
-      ...currentUser,
-      ...accountInfo,
-      ...userProfile,
-    };
-
-    return NextResponse.json({ user: mergedUser });
+    return NextResponse.json(
+      { user },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
-    console.error("Session check error:", error);
-    // Session is invalid, clear the cookie
     const cookieStore = await cookies();
-    cookieStore.delete("appwrite-session");
-
-    return NextResponse.json({ user: null }, { status: 401 });
+    if (!(error instanceof AuthorizationError)) {
+      cookieStore.delete(SESSION_COOKIE_NAME);
+    }
+    return NextResponse.json(
+      { user: null, error: error?.status === 403 ? "Forbidden" : "Unauthorized" },
+      {
+        status: error?.status === 403 ? 403 : 401,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
   }
 }

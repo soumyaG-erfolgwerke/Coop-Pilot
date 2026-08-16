@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { ID, Query } from "node-appwrite";
-import { cookies } from "next/headers";
 import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_NOTIFICATION,
   COLLECTION_ID_COOPERATIVES,
 } from "@/lib/appwrite-server";
+import { requireRole, resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { boundedId, validateStrictObject } from "@/lib/validation/strict-object";
 
 // Helper to create a notification in DB
 async function createNotificationInDB(
@@ -46,8 +48,18 @@ const notificationMessages = {
 // POST - Create notification for coop admins based on audit status
 export async function POST(request) {
   try {
+    const session = requireRole(await resolveSession(), [
+      "superuser",
+      "superadmin",
+      "org_admin",
+      "auditer",
+      "aud_E",
+    ]);
     const body = await request.json();
-    const { coopId, type } = body;
+    const shape = validateStrictObject(body, ["coopId", "type"], { maxBytes: 1024 });
+    if (!shape.ok) return NextResponse.json({ success: false, error: shape.error }, { status: 400 });
+    const coopId = boundedId(body.coopId);
+    const { type } = body;
 
     if (!coopId) {
       return NextResponse.json(
@@ -73,9 +85,9 @@ export async function POST(request) {
     }
 
     // Get current user email (optional fail-soft)
-    let userEmail = "service_internal@hystandards.de";
+    let userEmail = session.email || session.userId;
     try {
-      const cookieStore = await cookies();
+      const cookieStore = null;
       const sessionCookie = cookieStore.get("appwrite-session");
       if (sessionCookie?.value) {
         const { cookieValue } = JSON.parse(sessionCookie.value);
@@ -159,9 +171,10 @@ export async function POST(request) {
       data: { ok: failures.length === 0, sent, failures },
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error creating coop notification:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }

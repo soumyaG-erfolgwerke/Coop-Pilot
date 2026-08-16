@@ -134,14 +134,15 @@
 
       const createTransporter = () => {
             return nodemailer.createTransport({
-            service: "zohomail",
             host: process.env.SMTP_HOST,
-            port: 465,
-            secure: true,
+            port: Number(process.env.SMTP_PORT || 587),
+            secure: process.env.SMTP_SECURE === "true",
+            requireTLS: process.env.SMTP_SECURE !== "true",
             auth: {
             user: process.env.ADMIN_EMAIL,
             pass: process.env.ADMIN_EMAIL_PASS,
             },
+            tls: { minVersion: "TLSv1.2", servername: process.env.SMTP_HOST },
             });
       };
 

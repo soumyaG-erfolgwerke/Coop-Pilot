@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { updateQuorum } from "@/lib/helpers/_quorumHelpers";
-import { u } from "framer-motion/client";
+import { requireAssemblyAdmin } from "@/lib/auth/assembly-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function PUT(request, { params }) {
   try {
@@ -13,6 +15,7 @@ export async function PUT(request, { params }) {
         { status: 400 },
       );
     }
+    await requireAssemblyAdmin(assemblyId);
     if (
       typeof quorumValue !== "number" ||
       quorumValue < 0 ||
@@ -35,6 +38,7 @@ export async function PUT(request, { params }) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     if (error.message === "FORBIDDEN") {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
@@ -48,7 +52,7 @@ export async function PUT(request, { params }) {
       );
     }
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to calculate quorum" },
+      { success: false, error: safePublicError(error, "Failed to calculate quorum") },
       { status: 500 },
     );
   }

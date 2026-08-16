@@ -6,6 +6,7 @@ import {
   COLLECTION_ID_ASSEMBLY_VOTES,
 } from "@/lib/appwrite-server";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 const FIXED_OPTIONS = [
   { name: "JA (Yes)", votes: 0 },
@@ -114,7 +115,7 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to migrate polls" },
+      { success: false, error: safePublicError(error, "Failed to migrate polls") },
       { status: 500 },
     );
   }

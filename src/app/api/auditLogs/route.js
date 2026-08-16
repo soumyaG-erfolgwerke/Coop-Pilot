@@ -2,6 +2,8 @@ import { COLLECTION_ID_AUDITLOGS, createAdminClient, DATABASE_ID } from "@/lib/a
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET(req) {
   const { databases } = createAdminClient();
@@ -16,6 +18,8 @@ export async function GET(req) {
         { status: 400 },
       );
     }
+
+    await requireCoopAuditAccess(coopId);
 
     const user = await getAuthenticatedProfile();
 
@@ -65,10 +69,11 @@ export async function GET(req) {
       logs,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Fetch Audit Logs Error:", error);
 
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Could not fetch audit logs" },
       { status: 500 },
     );
   }

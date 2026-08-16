@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getKycStatus } from "@/lib/getKycStatus";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 /**
  * GET /api/member/kyc-status
@@ -11,18 +11,10 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const coopId = searchParams.get("coopId");
 
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("appwrite-session");
-
-    if (!sessionCookie?.value) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    const sessionData = JSON.parse(sessionCookie.value);
-    const userId = sessionData.userId;
+    const session = await resolveSession();
 
     // Use the upgraded getKycStatus with includeDetails = true
-    const kycDetails = await getKycStatus(userId, true, coopId);
+    const kycDetails = await getKycStatus(session.userId, true, coopId);
 
     if (!kycDetails) {
       return NextResponse.json({
@@ -41,6 +33,9 @@ export async function GET(request) {
     });
 
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error("KYC Status API Error:", error);
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }

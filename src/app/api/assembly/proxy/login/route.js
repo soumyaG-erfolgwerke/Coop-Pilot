@@ -15,21 +15,25 @@ export async function POST(request) {
     const body = await request.json();
     const { proxyUserId, proxyPassword, assemblyId, captchaToken } = body;
 
-    if (!proxyUserId || !proxyPassword || !assemblyId) {
+    if (
+      typeof proxyUserId !== "string" || !proxyUserId || proxyUserId.length > 100 ||
+      typeof proxyPassword !== "string" || !proxyPassword || proxyPassword.length > 128 ||
+      typeof assemblyId !== "string" || !assemblyId || assemblyId.length > 100
+    ) {
       return NextResponse.json(
         { success: false, error: "Missing credentials" },
         { status: 400 },
       );
     }
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {
@@ -74,6 +78,14 @@ export async function POST(request) {
       passwordValid = await bcrypt.compare(proxyPassword, proxy.proxyPassword);
     } else {
       passwordValid = proxy.proxyPassword === proxyPassword;
+      if (passwordValid) {
+        await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTION_ID_ASSEMBLY_PROXIES,
+          proxy.$id,
+          { proxyPassword: await bcrypt.hash(proxyPassword, 10) },
+        );
+      }
     }
 
     if (!passwordValid) {
@@ -123,10 +135,9 @@ export async function POST(request) {
           assemblyId: proxy.assemblyId,
           assemblyTitle: proxy.assemblyTitle,
           proxyHolderName: proxy.proxyHolderName,
-          proxyHolderEmail: proxy.proxyHolderEmail,
-          scope: proxy.scope,
-          status: proxy.status,
-          loginIp: currentIp,
+          proxyHolderUserId: proxy.proxyHolderUserId,
+          ownerUserId: proxy.ownerUserId,
+          ownerName: proxy.ownerName,
         },
       });
 
@@ -135,7 +146,7 @@ export async function POST(request) {
         attendance.proxySessionToken,
         {
           httpOnly: true,
-          secure: process.env.NEXT_PUBLIC_NODE_ENV === "production",
+          secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
           path: "/",
           maxAge: 60 * 60 * 6,
@@ -166,16 +177,15 @@ export async function POST(request) {
         assemblyId: proxy.assemblyId,
         assemblyTitle: proxy.assemblyTitle,
         proxyHolderName: proxy.proxyHolderName,
-        proxyHolderEmail: proxy.proxyHolderEmail,
-        scope: proxy.scope,
-        status: proxy.status,
-        loginIp: currentIp,
+        proxyHolderUserId: proxy.proxyHolderUserId,
+        ownerUserId: proxy.ownerUserId,
+        ownerName: proxy.ownerName,
       },
     });
 
     response.cookies.set("proxy-session", sessionToken, {
       httpOnly: true,
-      secure: process.env.NEXT_PUBLIC_NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 6,
@@ -185,7 +195,7 @@ export async function POST(request) {
   } catch (error) {
     console.error("PROXY_LOGIN_ERROR:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Proxy login failed" },
+      { success: false, error: "Proxy login failed" },
       { status: 500 },
     );
   }

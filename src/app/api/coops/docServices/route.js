@@ -11,6 +11,12 @@ import { ID, Query } from "node-appwrite";
 import { InputFile } from "node-appwrite/file";
 import { ensureCoopAdminAccess, getAuthenticatedProfile } from "@/lib/helpers/_helpers";
 import { updateSatzungState } from "@/lib/satzungService";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopMembership } from "@/lib/auth/membership-access";
+import { requireCoopAuditAccess } from "@/lib/auth/audit-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { hasExpectedFileSignature } from "@/lib/files/file-signature";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
 
 // Get all uploaded docs by coopAdmin
 export async function GET(request) {
@@ -28,13 +34,11 @@ export async function GET(request) {
   const { databases } = createAdminClient();
 
   try {
-    const user = await getAuthenticatedProfile();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "User profile not found" },
-        { status: 404 },
-      );
+    const user = await resolveSession();
+    if (["org_admin", "auditer", "aud_E", "aud_T"].includes(user.role)) {
+      await requireCoopAuditAccess(coopId);
+    } else {
+      await requireCoopMembership(user, coopId);
     }
 
     await updateSatzungState(coopId);
@@ -114,12 +118,13 @@ export async function GET(request) {
       grouped,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error fetching documents:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch documents",
+        error: safePublicError(error, "Failed to fetch documents"),
       },
       { status: 500 },
     );
@@ -240,6 +245,13 @@ export async function POST(request) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    if (!hasExpectedFileSignature(buffer, file.type)) {
+      return NextResponse.json(
+        { success: false, error: { message: "File content does not match its declared type" } },
+        { status: 400 },
+      );
+    }
+    await assertMalwareFree(buffer);
 
     let version = null;
     let isCurrent = false;
@@ -390,7 +402,7 @@ export async function POST(request) {
       {
         success: false,
         error: {
-          message: error.message || "Upload failed",
+          message: safePublicError(error, "Upload failed"),
         },
       },
       { status: 500 },
@@ -483,7 +495,7 @@ export async function PUT(req) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to update registry entry",
+        error: safePublicError(error, "Failed to update registry entry"),
       },
       { status: 500 },
     );

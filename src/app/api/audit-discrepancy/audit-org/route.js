@@ -12,12 +12,16 @@ import {
   getAuthenticatedProfile,
   stripInternalFields,
 } from "@/lib/helpers/_helpers";
+import { requireAuditOrgAccess, requireAuditStaff } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { createAuditLog } from "@/lib/auditLogService";
 
 const allowedRoles = ["org_admin", "auditer", "aud_E", "aud_T"];
 
 // create discrepancy for an audit organization
 export async function POST(request) {
   try {
+    await requireAuditStaff();
     const { auditOrgId, title, description, coopId, type } = await request.json();
     if (!auditOrgId || !title || !description || !coopId || !type) {
       return NextResponse.json(
@@ -25,6 +29,14 @@ export async function POST(request) {
         { status: 400 },
       );
     }
+    if (
+      typeof title !== "string" || title.length > 200 ||
+      typeof description !== "string" || description.length > 10_000 ||
+      !["threat", "notice", "obligate", "investigate", "ban"].includes(type)
+    ) {
+      return NextResponse.json({ success: false, error: "Invalid discrepancy data" }, { status: 400 });
+    }
+    await requireAuditOrgAccess(auditOrgId);
 
     const auth = await getAuthenticatedProfile();
     if (!auth || !allowedRoles.includes(auth.role)) {
@@ -37,13 +49,13 @@ export async function POST(request) {
     if (
       (auth.role === "aud_E" || auth.role === "aud_T") &&
       type !== "notice" &&
-      type !== "obligate"
+      type !== "threat"
     ) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Sub-auditors can only create 'notice' or 'obligate' discrepancies",
+            "Sub-auditors can only create 'notice' or 'threat' discrepancies",
         },
         { status: 403 },
       );
@@ -69,7 +81,7 @@ export async function POST(request) {
       coopId,
     );
 
-    if (!coopResponse || coopResponse.auditOrgId !== auditOrgId) {
+    if (!coopResponse || (coopResponse.auditOrgId?.$id || coopResponse.auditOrgId) !== auditOrgId) {
       return NextResponse.json(
         { success: false, error: "Coop not found" },
         { status: 404 },
@@ -129,15 +141,37 @@ export async function POST(request) {
       title,
       description,
       type,
+      status: "open",
       createdBy: auth.email,
     };
 
+    const discrepancyId = ID.unique();
     const newDiscrepancy = await databases.createDocument(
       DATABASE_ID,
       COLLECTION_ID_AUDIT_DISCREPANCY,
-      ID.unique(),
+      discrepancyId,
       discrepancyData,
     );
+    try {
+      await createAuditLog({
+        action: "DISCREPANCY_CREATED",
+        entityType: "AUDIT_DISCREPANCY",
+        entityId: discrepancyId,
+        performedBy: auth.userId || auth.$id || auth.email,
+        performedByName: auth.email,
+        coopId,
+        targetType: "AUDIT_ORG",
+        targetId: auditOrgId,
+        metadata: { status: "open", type, title },
+      });
+    } catch (auditError) {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        COLLECTION_ID_AUDIT_DISCREPANCY,
+        discrepancyId,
+      ).catch(() => {});
+      throw auditError;
+    }
 
     return NextResponse.json(
       {
@@ -147,6 +181,7 @@ export async function POST(request) {
       { status: 201 },
     );
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) return sessionErrorResponse(err);
     console.error("Error creating discrepancy:", err);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
@@ -157,6 +192,7 @@ export async function POST(request) {
 
 export async function GET(request) {
   try {
+    await requireAuditStaff();
     const { searchParams } = new URL(request.url);
     const auditOrgId = searchParams.get("auditOrgId");
     const coopId = searchParams.get("coopId");
@@ -167,6 +203,7 @@ export async function GET(request) {
         { status: 400 },
       );
     }
+    await requireAuditOrgAccess(auditOrgId);
 
     const auth = await getAuthenticatedProfile();
     if (!auth || !allowedRoles.includes(auth.role)) {
@@ -192,6 +229,7 @@ export async function GET(request) {
       { status: 200 },
     );
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) return sessionErrorResponse(err);
     console.error("Error fetching discrepancies:", err);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
@@ -202,7 +240,8 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    const { discrepancyId, status, auditOrgId, coopId } = await request.json();
+    await requireAuditStaff();
+    const { discrepancyId, status, auditOrgId, coopId, resolutionNote = "" } = await request.json();
 
     if (!discrepancyId || !status || !auditOrgId || !coopId) {
       return NextResponse.json(
@@ -210,6 +249,7 @@ export async function PATCH(request) {
         { status: 400 },
       );
     }
+    await requireAuditOrgAccess(auditOrgId);
 
     const validStatuses = ["open", "partially_resolved", "resolved"];
     if (!validStatuses.includes(status)) {
@@ -235,6 +275,15 @@ export async function PATCH(request) {
       COLLECTION_ID_AUDIT_DISCREPANCY,
       discrepancyId,
     );
+    if (
+      (discrepancyResponse.auditOrgId?.$id || discrepancyResponse.auditOrgId) !== auditOrgId ||
+      (discrepancyResponse.coopId?.$id || discrepancyResponse.coopId) !== coopId
+    ) {
+      return NextResponse.json({ success: false, error: "Discrepancy not found" }, { status: 404 });
+    }
+    if (typeof resolutionNote !== "string" || resolutionNote.length > 2000) {
+      return NextResponse.json({ success: false, error: "Invalid resolution note" }, { status: 400 });
+    }
 
     if (discrepancyResponse.status === status || discrepancyResponse.status === "resolved") {
       return NextResponse.json(
@@ -266,7 +315,7 @@ export async function PATCH(request) {
       coopId,
     );
 
-    if (!coopResponse || coopResponse.auditOrgId !== auditOrgId) {
+    if (!coopResponse || (coopResponse.auditOrgId?.$id || coopResponse.auditOrgId) !== auditOrgId) {
       return NextResponse.json(
         { success: false, error: "Coop not found" },
         { status: 404 },
@@ -320,18 +369,47 @@ export async function PATCH(request) {
       );
     }
 
+    const previousStatus = discrepancyResponse.status || "open";
+    const updateData = { status };
+    if (status === "resolved") updateData.resolvedBy = auth.email;
     const updatedDiscrepancy = await databases.updateDocument(
       DATABASE_ID,
       COLLECTION_ID_AUDIT_DISCREPANCY,
       discrepancyId,
-      { status },
+      updateData,
     );
+    try {
+      await createAuditLog({
+        action: "DISCREPANCY_STATUS_CHANGED",
+        entityType: "AUDIT_DISCREPANCY",
+        entityId: discrepancyId,
+        performedBy: auth.userId || auth.$id || auth.email,
+        performedByName: auth.email,
+        coopId,
+        targetType: "AUDIT_ORG",
+        targetId: auditOrgId,
+        metadata: {
+          fromStatus: previousStatus,
+          toStatus: status,
+          resolutionNote: resolutionNote.trim(),
+        },
+      });
+    } catch (auditError) {
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTION_ID_AUDIT_DISCREPANCY,
+        discrepancyId,
+        { status: previousStatus, resolvedBy: discrepancyResponse.resolvedBy || null },
+      ).catch(() => {});
+      throw auditError;
+    }
 
     return NextResponse.json(
       { success: true, data: updatedDiscrepancy },
       { status: 200 },
     );
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) return sessionErrorResponse(err);
     console.error("Error updating discrepancy:", err);
     return NextResponse.json(
       { success: false, error: "Internal server error" },

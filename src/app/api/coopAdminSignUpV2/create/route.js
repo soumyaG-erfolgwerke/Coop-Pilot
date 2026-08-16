@@ -20,24 +20,35 @@ import {
   changeInviteToAccepted,
 } from "@/services/auditOrgServices/miscellaneous";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
+import { isValidCoopSignupData } from "@/lib/validation/coop-signup";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 // POST /api/coopAdminSignUpV2/create - Create new coop admin
 export async function POST(request) {
   const rollback = createRollbackManager();
 
   try {
-    const formData = await request.formData();
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "A multipart form payload is required" },
+        { status: 400 },
+      );
+    }
 
     const captchaToken = formData.get("captchaToken");
 
-    if (!captchaToken && process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NEXT_PUBLIC_NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {
@@ -50,20 +61,41 @@ export async function POST(request) {
     const avvFile = formData.get("avvFile");
 
     // 1. Validate required inputs
-    if (!rawMeta) throw new Error("Missing metadata payload.");
+    if (!rawMeta || typeof rawMeta !== "string") {
+      return NextResponse.json(
+        { success: false, error: "Missing metadata payload" },
+        { status: 400 },
+      );
+    }
     if (!satzungFile || typeof satzungFile === "string") {
-      throw new Error("Missing or invalid Satzung file.");
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid Satzung file" },
+        { status: 400 },
+      );
     }
 
     let meta;
     try {
       meta = JSON.parse(rawMeta);
-    } catch (e) {
-      throw new Error("Invalid JSON in metadata payload.");
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Invalid metadata payload" },
+        { status: 400 },
+      );
     }
 
     const satzungArrayBuffer = await satzungFile.arrayBuffer();
     const satzungBuffer = Buffer.from(satzungArrayBuffer);
+    await assertMalwareFree(satzungBuffer);
+
+    let avvBuffer = null;
+    if (avvFile && typeof avvFile !== "string") {
+      avvBuffer = Buffer.from(await avvFile.arrayBuffer());
+      await assertMalwareFree(avvBuffer);
+    }
+    if (!isValidCoopSignupData(meta)) {
+      return NextResponse.json({ success: false, error: "Invalid signup data" }, { status: 422 });
+    }
 
     let auditOrgId = null;
     let Notes = null;
@@ -233,10 +265,7 @@ export async function POST(request) {
 
     // 7. Upload AVV File (if provided) and handle URL safely
     let avvFileUrl = null;
-    if (avvFile && typeof avvFile !== "string") {
-      const avvArrayBuffer = await avvFile.arrayBuffer();
-      const avvBuffer = Buffer.from(avvArrayBuffer);
-
+    if (avvFile && avvBuffer) {
       const uploadedAvv = await storage.createFile(
         AUDIT_BUCKET_ID,
         ID.unique(),
@@ -403,7 +432,7 @@ export async function POST(request) {
       }),
       {
         httpOnly: true,
-        secure: process.env.NEXT_PUBLIC_NODE_ENV === "production",
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7, // 1 week
         path: "/",
@@ -417,10 +446,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "An unexpected error occurred during signup.",
+        error: safePublicError(error, "Unable to complete signup"),
       },
       { status: 500 },
     );

@@ -9,11 +9,14 @@ import {
 import { ID } from "node-appwrite";
 
 import { InputFile } from "node-appwrite/file";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { hasExpectedFileSignature } from "@/lib/files/file-signature";
+import { assertMalwareFree } from "@/lib/files/malware-scan";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 export async function POST(request) {
-  const { storage, databases } = createAdminClient();
-
   try {
+    const session = await resolveSession({ requireProfile: false });
     const formData = await request.formData();
 
     const file = formData.get("file");
@@ -121,6 +124,29 @@ export async function POST(request) {
     const arrayBuffer = await file.arrayBuffer();
 
     const buffer = Buffer.from(arrayBuffer);
+    if (!hasExpectedFileSignature(buffer, file.type)) {
+      return NextResponse.json(
+        { success: false, error: { message: "File content does not match its declared type" } },
+        { status: 400 },
+      );
+    }
+    await assertMalwareFree(buffer);
+
+    const { storage, databases } = createAdminClient();
+
+    const requestedEmail = String(meta?.email || "").trim().toLowerCase();
+    if (!requestedEmail || requestedEmail !== String(session.email || "").trim().toLowerCase()) {
+      return NextResponse.json(
+        { success: false, error: { message: "Forbidden" } },
+        { status: 403 },
+      );
+    }
+    if (session.profile && !["coopadmin", "superuser", "superadmin"].includes(session.role)) {
+      return NextResponse.json(
+        { success: false, error: { message: "Forbidden" } },
+        { status: 403 },
+      );
+    }
 
     // UPLOAD TO SAME BUCKET
 
@@ -166,13 +192,14 @@ export async function POST(request) {
       data: onboardingDoc,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Onboarding upload failed:", error);
 
     return NextResponse.json(
       {
         success: false,
         error: {
-          message: error.message || "Upload failed",
+          message: safePublicError(error, "Upload failed"),
         },
       },
       {

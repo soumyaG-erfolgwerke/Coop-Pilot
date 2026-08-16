@@ -10,6 +10,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 
 import { Query } from "node-appwrite";
+import { decryptMailCredential } from "@/lib/mailCredentialCrypto";
 
 async function getCredential(accEmail) {
     try {
@@ -23,7 +24,12 @@ async function getCredential(accEmail) {
             ]
         );
 
-        return mailRes.documents[0];
+        const credential = mailRes.documents[0];
+        if (!credential) throw new Error("Mailbox credential not found");
+        return {
+            ...credential,
+            password: decryptMailCredential(credential.password),
+        };
     } catch (error) {
         console.error("Error getting mailboxes:", error);
         throw error;

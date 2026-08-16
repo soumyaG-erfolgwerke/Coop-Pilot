@@ -5,6 +5,7 @@ import {
   COLLECTION_ID_ASSEMBLY_VOTES,
 } from "@/lib/appwrite-server";
 import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function POST(request) {
   try {
@@ -20,6 +21,15 @@ export async function POST(request) {
 
     await ensureCoopAdminAccess(coopId);
     const { databases } = createAdminClient();
+
+    const poll = await databases.getDocument(
+      DATABASE_ID,
+      COLLECTION_ID_ASSEMBLY_VOTES,
+      pollId,
+    );
+    if (poll.coopId !== coopId) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
 
     const updated = await databases.updateDocument(
       DATABASE_ID,
@@ -44,7 +54,7 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to close poll" },
+      { success: false, error: safePublicError(error, "Failed to close poll") },
       { status: 500 },
     );
   }

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_PROFILE } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
+import { resolveSession, sessionErrorResponse, AuthorizationError } from "@/lib/auth/session";
 
 // PATCH /api/coopAdminSignUp/profile/verify - Update verification in profile by userId
 export async function PATCH(request) {
   try {
+    const session = await resolveSession({ requireProfile: false });
     const { userId } = await request.json();
 
     if (!userId) {
@@ -13,6 +15,7 @@ export async function PATCH(request) {
         { status: 400 }
       );
     }
+    if (userId !== session.userId || !session.account.emailVerification) throw new AuthorizationError();
 
     const { databases } = createAdminClient();
 
@@ -39,8 +42,9 @@ export async function PATCH(request) {
       { isVerified: true }
     );
 
-    return NextResponse.json({ success: true, document: updatedProfile });
+    return NextResponse.json({ success: true, verified: updatedProfile.isVerified === true });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error updating profile verification:", error);
     return NextResponse.json(
       { success: false, error: "Could not update profile verification" },

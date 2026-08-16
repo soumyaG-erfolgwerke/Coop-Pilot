@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
+import { safePublicError } from "@/lib/api/safe-public-error";
 import {
   createAdminClient,
   DATABASE_ID,
@@ -58,12 +59,21 @@ export async function GET(request) {
         Query.limit(100),
       ]);
       coopDocs = result.documents;
+    } else if (auth.role === "coopadmin") {
+      if (!auth.coopId) {
+        return NextResponse.json({ success: true, settings: [] });
+      }
+      const coop = await databases.getDocument(
+        DATABASE_ID,
+        COLLECTION_ID_COOPERATIVES,
+        auth.coopId,
+      );
+      coopDocs = coop ? [coop] : [];
     } else {
-      const result = await databases.listDocuments(DATABASE_ID, COLLECTION_ID_COOPERATIVES, [
-        Query.equal("admins", auth.email),
-        Query.limit(100),
-      ]);
-      coopDocs = result.documents;
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 },
+      );
     }
 
     const coopIds = coopDocs.map((coop) => coop.$id);
@@ -105,9 +115,12 @@ export async function GET(request) {
     if (error.message === "UNAUTHORIZED") {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
+    if (error.message === "FORBIDDEN") {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to list settings" },
+      { success: false, error: safePublicError(error, "Failed to list settings") },
       { status: 500 }
     );
   }
@@ -123,14 +136,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: "coopId is required" }, { status: 400 });
     }
 
-    // if (auth.role !== "superuser") {
-    //   const { databases } = createAdminClient();
-    //   const coopDoc = await databases.getDocument(DATABASE_ID, COLLECTION_ID_COOPERATIVES, coopId);
-    //   const admins = Array.isArray(coopDoc.admins) ? coopDoc.admins : [];
-    //   // if (!admins.includes(auth.email)) {
-    //   //   return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
-    //   // }
-    // }
+    await ensureCoopAdminAccess(coopId);
 
     const { databases } = createAdminClient();
     const satzungRes = await databases.listDocuments(
@@ -179,9 +185,12 @@ export async function POST(request) {
     if (error.message === "UNAUTHORIZED") {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
+    if (error.message === "FORBIDDEN") {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to create settings" },
+      { success: false, error: safePublicError(error, "Failed to create settings") },
       { status: 500 }
     );
   }

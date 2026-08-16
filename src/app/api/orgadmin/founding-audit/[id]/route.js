@@ -14,10 +14,11 @@ import {
   G6ValidationSchema,
   G7ValidationSchema,
 } from "@/lib/founding-audit/schema";
-import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { z } from "zod";
+import { requireAuditOrgAccess, requireAuditStaff } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 const ROLES = new Set(["org_admin", "auditer", "aud_E"]);
 
@@ -75,12 +76,8 @@ const deleteFoundingAudit = async (databases, auditId) => {
  * Expects example URL: /api/orgadmin/founding-audit/6a2653c2002b270e4149/
  */
 export const GET = async (req, { params }) => {
-  const session = await getAuthenticatedProfile();
-  if (!session || !session.role || !ROLES.has(session.role)) {
-    return NextErrorJson("User unauthorized.", 403);
-  }
-
   try {
+    await requireAuditStaff();
     const { id: auditId } = await params;
     if (!auditId) {
       return NextErrorJson("Audit ID is required", 400);
@@ -92,8 +89,9 @@ export const GET = async (req, { params }) => {
     try {
       auditDoc = await getFoundingAuditById(databases, auditId);
     } catch (error) {
-      return NextErrorJson(`[GET-AUDIT] ${error.message}`, 404);
+      return NextErrorJson("Founding audit not found", 404);
     }
+    await requireAuditOrgAccess(auditDoc.auditOrgId);
 
     const membersList = await getFoundingAuditsMembers(databases, auditId);
 
@@ -102,7 +100,8 @@ export const GET = async (req, { params }) => {
 
     return NextResponse.json({ status: 200, data: masterState });
   } catch (error) {
-    return NextErrorJson(`[GET-AUDIT] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to fetch founding audit");
   }
 };
 
@@ -136,10 +135,7 @@ const PHASE_VALIDATION_STRATEGIES = {
 
 export const PUT = async (req, { params }) => {
   try {
-    const session = await getAuthenticatedProfile();
-    if (!session || !session.role || !ROLES.has(session.role)) {
-      return NextErrorJson("User unauthorized.", 403);
-    }
+    await requireAuditStaff();
 
     const parsedParams = paramsSchema.safeParse(await params);
     if (!parsedParams.success) {
@@ -164,8 +160,9 @@ export const PUT = async (req, { params }) => {
     try {
       auditDoc = await getFoundingAuditById(databases, auditId);
     } catch (error) {
-      return NextErrorJson(`[PUT-AUDIT] ${error.message}`, 404);
+      return NextErrorJson("Founding audit not found", 404);
     }
+    await requireAuditOrgAccess(auditDoc.auditOrgId);
 
     if (auditDoc.globalStatus === "SUBMITTED") {
       return NextErrorJson("Finalized audit record is unmodifiable.", 403);
@@ -217,7 +214,8 @@ export const PUT = async (req, { params }) => {
       isSubmitted: isSubmit,
     });
   } catch (error) {
-    return NextErrorJson(`[PUT-AUDIT] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to update founding audit");
   }
 };
 
@@ -233,10 +231,7 @@ export const PATCH = async (req, { params }) => {
       return NextErrorJson("Audit ID path parameter is required.", 400);
     }
 
-    const session = await getAuthenticatedProfile();
-    if (!session || !session.role || !ROLES.has(session.role)) {
-      return NextErrorJson("User unauthorized.", 403);
-    }
+    await requireAuditStaff();
 
     const body = await req.json();
     if (!body) {
@@ -244,13 +239,19 @@ export const PATCH = async (req, { params }) => {
     }
 
     const { databases } = createAdminClient();
-    await updateFoundingAudit(databases, auditId, body);
+    const auditDoc = await getFoundingAuditById(databases, auditId);
+    await requireAuditOrgAccess(auditDoc.auditOrgId);
+    const allowed = {};
+    if (body.globalStatus === "DELETED") allowed.globalStatus = "DELETED";
+    if (Object.keys(allowed).length === 0) return NextErrorJson("Unsupported audit update.", 400);
+    await updateFoundingAudit(databases, auditId, allowed);
 
     return NextResponse.json({
       status: 200,
       message: "Audit updated successfully.",
     });
   } catch (error) {
-    return NextErrorJson(`[PATCH-AUDIT] ${error.message}`);
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
+    return NextErrorJson("Failed to update founding audit state");
   }
 };

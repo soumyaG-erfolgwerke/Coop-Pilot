@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { listAuditForms } from "@/lib/auditFormService";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { requireAuditOrgAccess } from "@/lib/auth/audit-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 export async function GET(request) {
   try {
@@ -7,7 +10,7 @@ export async function GET(request) {
 
     const orgId = searchParams.get("orgId");
 
-    if (!orgId) {
+    if (typeof orgId !== "string" || orgId.length === 0 || orgId.length > 64) {
       return NextResponse.json(
         {
           success: false,
@@ -17,6 +20,8 @@ export async function GET(request) {
       );
     }
 
+    await requireAuditOrgAccess(orgId);
+
     const { total, documents } = await listAuditForms(orgId);
 
     return NextResponse.json({
@@ -25,12 +30,13 @@ export async function GET(request) {
       auditForms: documents,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: safePublicError(error),
       },
       { status: 500 },
     );

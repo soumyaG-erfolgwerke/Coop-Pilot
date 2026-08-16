@@ -16,6 +16,7 @@ import {
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
+import { getSecureFileUrl } from "@/lib/secureFileUrl";
 
 export default function ProfileUpdatePage() {
   const [requests, setRequests] = useState([]);
@@ -63,9 +64,10 @@ export default function ProfileUpdatePage() {
 
   const getDocumentViewUrl = (fileId) => {
     if (!fileId) return "";
-    const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
-    const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-    return `${ENDPOINT}/storage/buckets/${process.env.NEXT_PUBLIC_AUDIT_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`;
+    return getSecureFileUrl(
+      process.env.NEXT_PUBLIC_AUDIT_BUCKET_ID || "6918a3360027dc0888aa",
+      fileId,
+    );
   };
 
   const filteredRequests = useMemo(() => {

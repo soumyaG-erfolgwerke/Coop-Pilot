@@ -30,7 +30,7 @@ const AuditLogSchema = new mongoose.Schema(
     environment: {
       type: String,
       enum: ['production', 'development', 'test'],
-      default: process.env.NEXT_PUBLIC_NODE_ENV || 'development',
+      default: process.env.NODE_ENV || 'development',
     },
   },
   {

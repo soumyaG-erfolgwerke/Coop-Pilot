@@ -1,36 +1,17 @@
-import { Client } from "appwrite";
+// Poll the authenticated notification API instead of subscribing directly to
+// a publicly readable Appwrite collection. The caller already refetches its
+// scoped notification list when this callback fires.
+export function initRealtimeNotifications({ onCreate, intervalMs = 20000 }) {
+  if (typeof window === "undefined") return () => {};
 
-// Retrieve credentials from environment variables
-const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+  const refresh = () => {
+    if (document.visibilityState === "visible") onCreate?.(null);
+  };
+  const timer = window.setInterval(refresh, intervalMs);
+  window.addEventListener("focus", refresh);
 
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
-const COLLECTION_ID_NOTIFICATION = "686b3b2a00300509bcf7";
-
-// Basic validation
-if (!endpoint || !projectId) {
-  throw new Error(
-    "Appwrite endpoint or project ID is missing. Check your .env file."
-  );
+  return () => {
+    window.clearInterval(timer);
+    window.removeEventListener("focus", refresh);
+  };
 }
-
-const client = new Client();
-client.setEndpoint(endpoint).setProject(projectId); // Optional: only needed for admin-level functions
-
-export function initRealtimeNotifications({ onCreate }) {
-  // ✅ subscribe returns an unsubscribe function
-  const unsubscribe = client.subscribe(
-    `databases.${DATABASE_ID}.collections.${COLLECTION_ID_NOTIFICATION}.documents`,
-    (response) => {
-      if (
-        response.events.includes("databases.*.collections.*.documents.*.create")
-      ) {
-        // console.log("📢 Realtime Create Event:", response.payload);
-        onCreate?.(response.payload);
-      }
-    }
-  );
-
-  return unsubscribe; // ✅ Return the unsubscribe function directly
-}
-

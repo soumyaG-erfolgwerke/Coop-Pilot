@@ -6,6 +6,7 @@ import {
     COLLECTION_ID_PROFILE,
 } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function GET(request) {
     try {
@@ -48,7 +49,7 @@ export async function GET(request) {
     } catch (error) {
         console.error("Next.js API IMAP Sent GET Error:", error);
         return NextResponse.json(
-            { success: false, error: error.message || "Failed to fetch sent mails" },
+            { success: false, error: safePublicError(error, "Failed to fetch sent mails") },
             { status: 500 }
         );
     }
@@ -75,7 +76,7 @@ export async function POST(request) {
         );
     } catch (error) {
         return NextResponse.json(
-            { success: false, error: error.message || "Failed to set mail up" },
+            { success: false, error: safePublicError(error, "Failed to set mail up") },
             { status: 500 },
         );
     }

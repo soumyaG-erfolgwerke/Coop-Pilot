@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_PROFILE } from "@/lib/appwrite-server";
 import { ID, Query } from "node-appwrite";
+import {
+  requireRole,
+  resolveSession,
+  sessionErrorResponse,
+} from "@/lib/auth/session";
 
 // Role mapping for different admin types
 const ROLE_MAP = {
@@ -18,6 +23,7 @@ export async function POST(request) {
   let profileDocumentId = ID.unique();
 
   try {
+    requireRole(await resolveSession(), ["superuser"]);
     const formData = await request.json();
     const { users, databases } = createAdminClient();
 
@@ -77,6 +83,9 @@ export async function POST(request) {
       documentId: profile.$id,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error("Admin Creation Error:", error);
     let errorMessage = "An unexpected error occurred during admin creation.";
     const errorCode = error.code || "UNKNOWN";
@@ -121,6 +130,15 @@ export async function POST(request) {
         : "Authorization error during admin profile creation.";
     } else if (error.message) {
       errorMessage = error.message;
+    }
+
+    if (createdUser) {
+      try {
+        const { users } = createAdminClient();
+        await users.delete(createdUser.$id);
+      } catch {
+        // Preserve the original error; cleanup failure is handled operationally.
+      }
     }
 
     return NextResponse.json(

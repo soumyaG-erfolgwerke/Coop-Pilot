@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
 import { createAdminClient, DATABASE_ID, COLLECTION_ID_TRANSACTION, COLLECTION_ID_COOPXMEMBER } from "@/lib/appwrite-server";
 import { getUpdatedHistoryJson } from "@/lib/memberHistoryService";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function PATCH(request) {
   try {
-    const { transactionId, status, memberId, coopId, adminEmail } = await request.json();
+    const session = await resolveSession();
+    const { transactionId, status, memberId, coopId } = await request.json();
 
     if (!transactionId || !status || !memberId || !coopId) {
       return NextResponse.json(
@@ -13,14 +17,20 @@ export async function PATCH(request) {
         { status: 400 }
       );
     }
+    await requireCoopAdministration(session, coopId);
 
     const { databases } = createAdminClient();
+    const transaction = await databases.getDocument(DATABASE_ID, COLLECTION_ID_TRANSACTION, transactionId);
+    if (
+      (transaction.memberId?.$id || transaction.memberId) !== memberId ||
+      (transaction.coopId?.$id || transaction.coopId) !== coopId
+    ) return NextResponse.json({ success: false, error: "Transaction not found" }, { status: 404 });
 
     // 1. Handle Verified
     if (status === "verified") {
       const updatePayload = {
         isAdminApproved: true,
-        ...(adminEmail ? { approvedBy: adminEmail } : {}),
+        approvedBy: session.email || session.userId,
       };
       const updatedTx = await databases.updateDocument(
         DATABASE_ID,
@@ -88,9 +98,10 @@ export async function PATCH(request) {
       { status: 400 }
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error updating proposal status:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 }
     );
   }

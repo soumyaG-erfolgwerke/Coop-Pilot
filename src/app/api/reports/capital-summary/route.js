@@ -41,6 +41,8 @@ export const GET = async (req) => {
       history: reportList.documents ?? [],
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (error instanceof Response) return error;
+    console.error("Capital summary listing failed", { code: error?.code, type: error?.type });
+    return NextResponse.json({ success: false, error: "Could not list capital summaries" }, { status: 500 });
   }
 };

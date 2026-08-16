@@ -4,10 +4,10 @@ import {
   DATABASE_ID,
   COLLECTION_ID_ASSEMBLIES,
 } from "@/lib/appwrite-server";
-import {
-  getAuthenticatedProfile,
-} from "@/lib/helpers/_helpers";
+import { requireAssemblyAdmin } from "@/lib/auth/assembly-access";
+import { sessionErrorResponse } from "@/lib/auth/session";
 import { assemblyDeserialization } from "@/services/assembly/assemblySchema";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 const { databases } = createAdminClient();
 
@@ -22,13 +22,7 @@ export async function GET(request, { params }) {
       );
     }
 
-    const auth = await getAuthenticatedProfile();
-    if (!auth || auth.role !== "coopadmin") {
-      return NextResponse.json(
-        { success: false, error: "Forbidden" },
-        { status: 403 },
-      );
-    }
+    await requireAssemblyAdmin(assemblyId);
 
     // Fetch assembly document
     const assemblyRes = await databases.getDocument(
@@ -54,11 +48,14 @@ export async function GET(request, { params }) {
       { status: 200 },
     );
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse(error?.message === "FORBIDDEN" ? { status: 403 } : error);
+    }
     console.error("Error fetching assembly:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message,
+        error: safePublicError(error),
       },
       { status: 500 },
     );

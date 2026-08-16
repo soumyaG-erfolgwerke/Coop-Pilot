@@ -78,6 +78,7 @@ const StepIndicator = ({ currentStep, totalSteps }) => {
 };
 
 const OnboardingForm = () => {
+  const [inviteToken, setInviteToken] = useState("");
   const [currentStep, setCurrentStep] = useState(1);
   const [isExistingCoopAdmin, setIsExistingCoopAdmin] = useState(false);
   const totalSteps = isExistingCoopAdmin ? 4 : 7;
@@ -86,7 +87,7 @@ const OnboardingForm = () => {
   const [selectedCooperative, setSelectedCooperative] = useState(null);
   const [coopAlreadyExists, setCoopAlreadyExists] = useState(false);
 
-  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   const [formData, setFormData] = useState({
     email: "",
@@ -137,6 +138,14 @@ const OnboardingForm = () => {
     adminEmail: "",
     coopName: "",
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") || "";
+    const email = params.get("email") || "";
+    setInviteToken(token);
+    if (email) setFormData((previous) => ({ ...previous, email }));
+  }, []);
 
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -198,7 +207,7 @@ const OnboardingForm = () => {
 
     setIsVerifying(true);
     try {
-      const invitedCoops = await getInvitedCoopsByAdminEmail(formData.email);
+      const invitedCoops = await getInvitedCoopsByAdminEmail(formData.email, inviteToken);
 
       if (!invitedCoops.coops || invitedCoops.coops.length === 0) {
         setHasNoInvites(true);
@@ -222,7 +231,7 @@ const OnboardingForm = () => {
 
       // Check if user is existing admin
       const profileCheckResponse = await fetch(
-        `/api/onboardAdmin/checkProfile?email=${encodeURIComponent(formData.email)}`,
+        `/api/onboardAdmin/checkProfile?email=${encodeURIComponent(formData.email)}&token=${encodeURIComponent(inviteToken)}`,
       );
       if (profileCheckResponse.ok) {
         const { exists } = await profileCheckResponse.json();
@@ -346,6 +355,7 @@ const OnboardingForm = () => {
           formData,
           isExistingCoopAdmin,
           coopId: selectedCooperative?.$id || selectedCooperative?.id,
+          inviteToken,
         }),
       });
 

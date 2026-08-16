@@ -6,7 +6,9 @@ import {
 
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
-import { getAuthenticatedProfile } from "@/lib/helpers/_helpers";
+import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { safePublicError } from "@/lib/api/safe-public-error";
 
 export async function GET(req) {
   const { databases } = createAdminClient();
@@ -24,13 +26,7 @@ export async function GET(req) {
     }
 
     // 🔐 auth
-    const user = await getAuthenticatedProfile();
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "User profile not found" },
-        { status: 404 },
-      );
-    }
+    await ensureCoopAdminAccess(coopId);
 
     // 🔍 query
     const queries = [
@@ -65,10 +61,13 @@ export async function GET(req) {
       assemblies,
     });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403 || error?.message === "UNAUTHORIZED" || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse({ status: error?.status === 403 || error?.message === "FORBIDDEN" ? 403 : 401 });
+    }
     console.error("Fetch Assemblies Error:", error);
 
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: safePublicError(error)},
       { status: 500 },
     );
   }

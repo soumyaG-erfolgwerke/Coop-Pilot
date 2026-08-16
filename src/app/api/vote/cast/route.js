@@ -6,20 +6,40 @@ import {
   COLLECTION_ID_ASSEMBLY_ATTENDANCE,
 } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
+import { sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopParticipant, resolveVotingActor } from "@/lib/auth/vote-access";
+
+const pollLocks = new Map();
+async function acquirePollLock(pollId) {
+  const previous = pollLocks.get(pollId) || Promise.resolve();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const chain = previous.then(() => gate);
+  pollLocks.set(pollId, chain);
+  await previous;
+  return () => {
+    release();
+    if (pollLocks.get(pollId) === chain) pollLocks.delete(pollId);
+  };
+}
 
 // POST - Cast a vote
 export async function POST(request) {
+  let releasePollLock;
   try {
+    const session = await resolveVotingActor();
     const body = await request.json();
-    const { $id, userId, selectedOption } = body;
+    const { $id, selectedOption } = body;
+    const userId = session.userId;
 
-    if (!$id || !userId || selectedOption === undefined) {
+    if (!$id || selectedOption === undefined) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 },
       );
     }
 
+    releasePollLock = await acquirePollLock($id);
     const { databases } = createAdminClient();
 
     // 1. Fetch the voting document
@@ -34,6 +54,11 @@ export async function POST(request) {
         { success: false, error: "Voting document not found" },
         { status: 404 },
       );
+    }
+
+    await requireCoopParticipant(session, votingDoc.coopId);
+    if (session.role === "proxy" && votingDoc.assemblyId !== session.proxyAssemblyId) {
+      return sessionErrorResponse({ status: 403 });
     }
 
     const now = new Date();
@@ -91,7 +116,7 @@ export async function POST(request) {
     // 3. Deserialize options (array of JSON strings)
 
     // 4. Validate selected option
-    if (selectedOption < 0 || selectedOption > 2) {
+    if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption > 2) {
       return NextResponse.json(
         { success: false, error: "Invalid option selected" },
         { status: 400 },
@@ -141,10 +166,15 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, data: response });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      return sessionErrorResponse(error);
+    }
     console.error("Error casting vote:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: "Could not cast vote" },
       { status: 500 },
     );
+  } finally {
+    releasePollLock?.();
   }
 }

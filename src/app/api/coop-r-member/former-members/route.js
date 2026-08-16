@@ -5,10 +5,13 @@ import {
     COLLECTION_ID_PROFILE,
     COLLECTION_ID_COOPXMEMBER
 } from "@/lib/appwrite-server";
+import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+import { requireCoopAdministration } from "@/lib/auth/membership-access";
 
 // GET /api/coop-r-member/former-members?coopId= - Get former members of a coop with exitDate
 export async function GET(request) {
     try {
+        const session = await resolveSession();
         const { searchParams } = new URL(request.url);
         const coopId = searchParams.get("coopId");
 
@@ -18,6 +21,7 @@ export async function GET(request) {
                 { status: 400 }
             );
         }
+        await requireCoopAdministration(session, coopId);
 
         const { databases } = createAdminClient();
 
@@ -75,6 +79,7 @@ export async function GET(request) {
 
         return NextResponse.json({ success: true, members: result });
     } catch (error) {
+        if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
         console.error("Failed to fetch former members for coop:", error);
         return NextResponse.json({ success: false, members: [] }, { status: 500 });
     }

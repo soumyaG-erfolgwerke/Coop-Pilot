@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { validateAdminRole, updateKycStatus } from "@/lib/kycReviewService";
+import { safePublicError } from "@/lib/api/safe-public-error";
+import { ensureCoopAdminAccess } from "@/lib/helpers/_helpers";
+import { sessionErrorResponse } from "@/lib/auth/session";
 
 /**
  * PATCH /api/coop-admin/kyc-applications/review
@@ -10,12 +13,13 @@ export async function PATCH(request) {
   try {
     const { userId, action, reason, askResubmission, coopId } = await request.json();
 
-    if (!userId || !action) {
-      return NextResponse.json({ success: false, error: "Missing userId or action" }, { status: 400 });
+    if (!userId || !coopId || !["accept", "reject", "resubmit"].includes(action)) {
+      return NextResponse.json({ success: false, error: "Valid userId, coopId, and action are required" }, { status: 400 });
     }
 
     // 1. Verify role
     const adminUserId = await validateAdminRole();
+    await ensureCoopAdminAccess(coopId);
 
     // 2. Determine status and resubmission flag based on action
     let status;
@@ -55,6 +59,12 @@ export async function PATCH(request) {
       message: `KYC application ${action}ed successfully`,
     });
   } catch (error) {
+    if (error?.code === 404 || error?.type === "document_not_found") {
+      return sessionErrorResponse({ status: 403 });
+    }
+    if (error?.status === 401 || error?.status === 403 || error?.message === "UNAUTHORIZED" || error?.message === "FORBIDDEN") {
+      return sessionErrorResponse({ status: error?.status === 403 || error?.message === "FORBIDDEN" ? 403 : 401 });
+    }
     console.error("KYC Review Error:", error);
     const status = error.message.includes("Unauthorized") ? 401 :
       error.message.includes("Forbidden") ? 403 :
@@ -62,7 +72,7 @@ export async function PATCH(request) {
           error.message.includes("already") ? 400 : 500;
 
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to process KYC review" },
+      { success: false, error: safePublicError(error, "Failed to process KYC review") },
       { status: status }
     );
   }

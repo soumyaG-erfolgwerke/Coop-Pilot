@@ -154,17 +154,14 @@ export const markTicketCancelled = (id) => updateTicketStatus(id, "Cancelled");
 
 export const addTicketComment = async (
   id,
-  { creator, text, timestamp = new Date().toISOString() },
-  { newStatus } = {},
+  { text },
 ) => {
   try {
-    if (newStatus) ensureValidStatus(newStatus);
-
     // console.log("addTicketComment");
 
     // enforce Appwrite's 5000-char per string limit (leave room for JSON keys)
     const MAX = 5000;
-    const payloadStr = JSON.stringify({ creator, text, timestamp });
+    const payloadStr = JSON.stringify({ text });
     if (payloadStr.length > MAX) {
       throw new Error(`Comment too long (${payloadStr.length} > ${MAX}).`);
     }
@@ -172,7 +169,7 @@ export const addTicketComment = async (
     const res = await fetch(`/api/ticket/${encodeURIComponent(id)}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ creator, text, timestamp, newStatus }),
+      body: JSON.stringify({ text }),
     });
     const data = await res.json();
     return data.ticket || null;
