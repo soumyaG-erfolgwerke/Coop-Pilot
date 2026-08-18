@@ -11,6 +11,7 @@ import {
 import { getSecureFileUrl } from "@/lib/secureFileUrl";
 import { createRollbackManager } from "@/lib/rollbackService";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { getCaptchaProvider } from "@/lib/captcha/provider";
 import { safePublicError } from "@/lib/api/safe-public-error";
 import { assertMalwareFree } from "@/lib/files/malware-scan";
 import { InputFile } from "node-appwrite/file";
@@ -40,7 +41,7 @@ export async function POST(request) {
       );
     }
 
-    if (!captchaToken && process.env.NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
