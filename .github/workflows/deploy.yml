@@ -18,15 +18,30 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           timeout: 60s
-          command_timeout: 10m
+          command_timeout: 15m
+
           script: |
             set -e
 
             cd /home/soumya/cooppilot/app
 
+            echo "========================================"
             echo "Fetching latest code..."
+            echo "========================================"
+
             git fetch origin main
-            git pull --ff-only origin main
+
+            echo "Synchronizing application code..."
+
+            # Preserve production-only files.
+            cp .env /tmp/cooppilot-production.env
+
+            # Switch tracked files to the new repository.
+            git reset --hard origin/main
+
+            # Restore production environment.
+            cp /tmp/cooppilot-production.env .env
+            chmod 600 .env
 
             echo "Installing dependencies..."
             npm ci
@@ -34,10 +49,27 @@ jobs:
             echo "Building application..."
             npm run build
 
+            echo "Build successful."
+
             echo "Restarting CoopPilot..."
             pm2 restart cooppilot
 
             echo "Checking PM2..."
             pm2 status cooppilot
 
-            echo "Deployment completed successfully."
+            echo "Checking application..."
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:3010/ > /dev/null; then
+                echo "Application is healthy."
+                echo "========================================"
+                echo "Deployment completed successfully."
+                echo "========================================"
+                exit 0
+              fi
+
+              echo "Health check $i/30 failed. Waiting 2 seconds..."
+              sleep 2
+            done
+
+            echo "Application health check failed."
+            exit 1
