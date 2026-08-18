@@ -1,7 +1,7 @@
 // Poll the authenticated notification API instead of subscribing directly to
 // a publicly readable Appwrite collection. The caller already refetches its
 // scoped notification list when this callback fires.
-export function initRealtimeNotifications({ onCreate, intervalMs = 20000 }) {
+export function initRealtimeNotifications({ onCreate, intervalMs = 45000 }) {
   if (typeof window === "undefined") return () => {};
 
   const refresh = () => {

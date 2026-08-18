@@ -9,10 +9,9 @@ import { verifyTrust } from "./verifyTrust";
  */
 export function getCaptchaProvider() {
   const provider = process.env.CAPTCHA_PROVIDER || process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER;
-  if (provider === "google") return "google";
-  if (provider === "trustcaptcha") return "trustcaptcha";
-  if (provider === "disabled") return "disabled";
-  return "google"; // Default active provider
+  if (provider === "google" && process.env.FORCE_ENABLE_CAPTCHA !== "true") return "disabled";
+  if (provider === "trustcaptcha" && process.env.FORCE_ENABLE_CAPTCHA !== "true") return "disabled";
+  return "disabled";
 }
 
 /**

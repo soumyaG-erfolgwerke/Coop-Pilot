@@ -83,20 +83,11 @@ const useUserCache = () => {
         parsedMap = new Map();
       }
 
-      // optional: write back normalized object format for future reads
-      safeLocalStorage.setItem(
-        LOCAL_STORAGE_KEY,
-        JSON.stringify(Object.fromEntries(parsedMap))
-      );
-
       const key = String(userId); // ensure consistent string keys
-      // console.log('localstorage', key, parsedMap);
+      userMapRef.current = parsedMap;
 
       if (parsedMap.has(key)) {
-        userMapRef.current = parsedMap;
-        const value = parsedMap.get(key);
-        // console.log(key, value);
-        return value;
+        return parsedMap.get(key);
       }
     }
 

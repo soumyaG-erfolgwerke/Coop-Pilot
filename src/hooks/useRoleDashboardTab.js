@@ -60,15 +60,20 @@ export function useRoleDashboardTab(tabMap, defaultView) {
       return;
     }
 
-    if (allowedViews.has(defaultView) && activeView !== defaultView) {
-      setActiveView(defaultView);
-    }
-
     const defaultTab = viewToTab[defaultView];
     if (defaultTab && currentTab !== defaultTab) {
-      replaceTabInUrl(defaultTab);
+      if (allowedViews.has(defaultView) && activeView !== defaultView) {
+        setActiveView(defaultView);
+      }
+      // Use replace instead of push to avoid polluting history and prevent re-render loops
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", defaultTab);
+      const nextQuery = params.toString();
+      const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+      router.replace(nextUrl, { scroll: false });
     }
-  }, [activeView, allowedViews, defaultView, replaceTabInUrl, safeTabMap, searchParams, viewToTab]);
+  }, [pathname, router, searchParams, safeTabMap, allowedViews, viewToTab, defaultView, activeView]);
+
 
   const setView = useCallback(
     (nextView) => {
