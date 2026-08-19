@@ -20,7 +20,6 @@ import {
   changeInviteToAccepted,
 } from "@/services/auditOrgServices/miscellaneous";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
-import { getCaptchaProvider } from "@/lib/captcha/provider";
 import { assertMalwareFree } from "@/lib/files/malware-scan";
 import { isValidCoopSignupData } from "@/lib/validation/coop-signup";
 import { safePublicError } from "@/lib/api/safe-public-error";
@@ -42,7 +41,7 @@ export async function POST(request) {
 
     const captchaToken = formData.get("captchaToken");
 
-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },

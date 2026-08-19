@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/appwrite-server";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
-import { getCaptchaProvider } from "@/lib/captcha/provider";
 
 // POST /api/forget-password - Create password recovery email
 export async function POST(request) {
@@ -59,7 +58,7 @@ export async function PUT(request) {
       );
     }
 
-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
