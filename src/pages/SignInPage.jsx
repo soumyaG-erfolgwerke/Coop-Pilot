@@ -39,7 +39,7 @@ const LinkSetPasswordModal = ({ isOpen, onClose, searchParams }) => {
   const router = useRouter();
 
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
+  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
 
   const userId = searchParams.get("userId");
   const secret = searchParams.get("secret");
@@ -577,7 +577,7 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     if (isOpen) {
@@ -726,7 +726,7 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [sentEmail, setSentEmail] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     if (isOpen) {
@@ -873,7 +873,7 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
+  const isDeployment = process.env.NODE_ENV === "production";
 
   useEffect(() => {
     if (isOpen) {

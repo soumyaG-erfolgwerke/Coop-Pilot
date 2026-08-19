@@ -9,7 +9,6 @@ import {
   COLLECTION_ID_COOP_REGISTRY 
 } from "@/lib/appwrite-server";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
-import { getCaptchaProvider } from "@/lib/captcha/provider";
 import { safePublicError } from "@/lib/api/safe-public-error";
 import { isValidCoopSignupData } from "@/lib/validation/coop-signup";
 
@@ -21,7 +20,7 @@ export async function POST(request) {
 
     const captchaToken = formData.captchaToken;
 
-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
+    if (!captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
