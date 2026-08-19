@@ -2,7 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
 
 const socketPath = process.env.PDF_RENDERER_SOCKET || "/tmp/cooppilot-pdf-renderer.sock";
 const chromePath = process.env.PDF_CHROME_BINARY;
