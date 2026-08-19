@@ -46,7 +46,7 @@ const ScrollStackSection = ({ direction = "vertical", children }) => {
     });
 
     return () => {
-      ScrollTrigger.getAll().forEach(t => t.kill());
+      if (tl.scrollTrigger) tl.scrollTrigger.kill();
       tl.kill();
     };
   }, [direction]);

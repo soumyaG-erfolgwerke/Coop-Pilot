@@ -96,26 +96,33 @@ export default function FormBuilderPage({
       const maxTop = cardBottom - barHeight - 8;
       y = Math.min(y, Math.max(targetTop, maxTop));
 
-      setBarTop(y);
+      setBarTop((prev) => (Math.abs(prev - y) > 1 ? y : prev));
     };
 
-    updatePosition();
+    let animationFrameId;
+    const throttledUpdate = () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(updatePosition);
+    };
+
+    throttledUpdate();
 
     // Event listeners
-    window.addEventListener("scroll", updatePosition);
-    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", throttledUpdate);
+    window.addEventListener("resize", throttledUpdate);
 
-    // Watch for size changes using ResizeObserver (extremely robust for layout shifts!)
+    // Watch for size changes using ResizeObserver
     let resizeObserver;
     const containerEl = document.getElementById("builder-container");
     if (containerEl && typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(updatePosition);
+      resizeObserver = new ResizeObserver(throttledUpdate);
       resizeObserver.observe(containerEl);
     }
 
     return () => {
-      window.removeEventListener("scroll", updatePosition);
-      window.removeEventListener("resize", updatePosition);
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("scroll", throttledUpdate);
+      window.removeEventListener("resize", throttledUpdate);
       if (resizeObserver && containerEl) {
         resizeObserver.unobserve(containerEl);
       }
