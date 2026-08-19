@@ -10,11 +10,13 @@ import {
 } from "@/lib/appwrite-server";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
 import { logger } from "@/lib/logger";
+import { verifyMonitorAuthProof } from "@/lib/dev-console/monitor-auth";
 
 export async function POST(request) {
   try {
     const { hostname } = request.nextUrl;
-    const { email, password, captchaToken } = await request.json();
+    const { email, password, captchaToken, monitorTimestamp, monitorSignature } = await request.json();
+    const trustedDemoMonitor = verifyMonitorAuthProof(email, monitorTimestamp, monitorSignature);
 
     if (
       typeof email !== "string" || !email || email.length > 254 ||
@@ -26,14 +28,14 @@ export async function POST(request) {
       );
     }
 
-    if (!captchaToken && process.env.NODE_ENV === "production") {
+    if (!trustedDemoMonitor && !captchaToken && process.env.NODE_ENV === "production") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
       );
     }
 
-    if (process.env.NODE_ENV === "production") {
+    if (!trustedDemoMonitor && process.env.NODE_ENV === "production") {
       const ok = await verifyCaptcha(captchaToken);
       console.log("Captcha verification result:", ok);
       if (!ok) {

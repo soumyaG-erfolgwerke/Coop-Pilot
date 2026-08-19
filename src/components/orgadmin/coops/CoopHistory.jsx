@@ -37,7 +37,7 @@ export const StatusBadge = ({ status }) => {
 export const HistoryPage = ({ coop, auditOrg, history, isLoading, onBack }) => {
   const [formType, setFormType] = useState("");
   const [currentCoop, setCurrentCoop] = useState(coop);
-  const [startAuditIsLoading, setStartAuditIsLoading] = useState(true);
+  const [startAuditIsLoading, setStartAuditIsLoading] = useState(false);
   const [coopAuditData, setCoopAuditData] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -87,6 +87,7 @@ export const HistoryPage = ({ coop, auditOrg, history, isLoading, onBack }) => {
   const isLastAuditCompleted =
     lastAuditStatus === "SUBMITTED" ||
     lastAuditStatus === "REJECTED" ||
+    lastAuditStatus === "APPROVED" ||
     !lastAuditStatus;
 
   const formOptions = [
@@ -163,7 +164,8 @@ export const HistoryPage = ({ coop, auditOrg, history, isLoading, onBack }) => {
             </div>
           </div>
 
-          {currentCoop?.auditStatus === "NOT_STARTED" ||
+          {!currentCoop?.auditStatus ||
+          currentCoop?.auditStatus === "NOT_STARTED" ||
           currentCoop?.auditStatus === "REJECTED" ||
           currentCoop?.auditStatus === "APPROVED" ? (
             !isSubAuditor && (

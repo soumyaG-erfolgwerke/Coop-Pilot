@@ -10,4 +10,7 @@ export async function register() {
     const original = console[method].bind(console);
     console[method] = (...args) => original(...redactLogArguments(args));
   }
+
+  const { startDevMonitoringScheduler } = await import("@/lib/dev-console/scheduler");
+  startDevMonitoringScheduler();
 }

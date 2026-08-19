@@ -34,6 +34,7 @@ export default function AuditStatusButtons({
   coopId,
   currentStatus,
   onUpdated,
+  reload,
 }) {
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState("");
@@ -45,6 +46,7 @@ export default function AuditStatusButtons({
     try {
       await ACTIONS[next].fn(coopId);
       onUpdated?.(next); // let parent update UI optimistically
+      reload?.(); // also support reload prop
     } catch (e) {
       console.error(e);
       setError("Failed to update audit status.");
