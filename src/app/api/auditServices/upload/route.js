@@ -41,14 +41,17 @@ export async function POST(request) {
     }
     await assertMalwareFree(buffer);
 
-    // Create InputFile from buffer
-    const inputFile = InputFile.fromBuffer(buffer, file.name);
+    // Use native File object instead of InputFile to avoid instanceof check
+    // failure caused by Next.js bundling duplicating the InputFile class.
+    // The node-appwrite SDK's chunkedUpload accepts both InputFile and
+    // native File (undici.File), so this is fully compatible.
+    const nativeFile = new File([buffer], file.name, { type: "application/pdf" });
 
     // Upload the file to Appwrite Storage
     const uploadedFile = await storage.createFile(
       AUDIT_BUCKET_ID,
       ID.unique(),
-      inputFile
+      nativeFile
     );
 
     // Construct the public URL for the file
