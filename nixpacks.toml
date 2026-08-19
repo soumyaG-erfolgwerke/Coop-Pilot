@@ -22,9 +22,3 @@ aptPkgs = [
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'true'
 PDF_CHROME_BINARY = '/usr/bin/chromium'
-
-[phases.build]
-cmds = ['npm run build']
-
-[start]
-cmd = 'npm run start'
