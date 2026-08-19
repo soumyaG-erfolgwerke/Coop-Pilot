@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { appwriteFetchWithSession } from "@/lib/appwrite-server";
 import { validatePassword } from "@/helpers/passwordValidator";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { getCaptchaProvider } from "@/lib/captcha/provider";
 import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
 
 // POST /api/userServices/update/password
@@ -20,7 +21,7 @@ export async function POST(request) {
 
     const { oldPassword, newPassword, captchaToken } = body;
 
-    if (!captchaToken && process.env.NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },

@@ -33,7 +33,7 @@ const LinkSetPasswordModal = ({ isOpen, onClose, searchParams }) => {
   const router = useRouter();
 
   const [captchaToken, setCaptchaToken] = useState("");
-  const isDeployment = process.env.NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
 
   const userId = searchParams.get("userId");
   const secret = searchParams.get("secret");
@@ -208,7 +208,7 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
 
-  const isDeployment = process.env.NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
 
   useEffect(() => {
     setEmail("");
@@ -359,7 +359,7 @@ const AuditSignInPage = () => {
     useState(false);
   const [isSetPasswordModalOpen, setIsSetPasswordModalOpen] = useState(false);
 
-  const isDeployment = process.env.NODE_ENV === "production";
+  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
   
   useEffect(() => {
     setEmail("");
