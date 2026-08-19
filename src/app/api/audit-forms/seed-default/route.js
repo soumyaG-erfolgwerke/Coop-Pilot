@@ -1,99 +1,163 @@
 import { NextResponse } from "next/server";
-import { createAuditForm, updateAuditForm } from "@/lib/auditFormService";
+import { getDb } from "@/lib/appwrite";
+import { ID } from "node-appwrite";
 
-const checklistItems = [
-  { id: "1.0", section: "Allgemein", number: "1.0", title: "Erklärung zur Prüfung- und Vollständigkeit", description: "Formular mit Fragenkatalog zur Prüfung nach §§ 53 ff GenG" },
-  { id: "1.1", section: "Allgemein", number: "1.1", title: "Satzung", description: "aktuelle Satzung der Genossenschaft" },
-  { id: "1.2", section: "Allgemein", number: "1.2", title: "Gewerbeanmeldung", description: "aktuelle Gewerbeanmeldung oder -ummeldung" },
-  { id: "1.3", section: "Allgemein", number: "1.3", title: "Registerauszug", description: "aktueller Auszug aus dem Genossenschaftsregister" },
-  { id: "1.4", section: "Allgemein", number: "1.4", title: "Immobilien und Unternehmensbeteiligungen", description: "Formular zu Immobilien sowie Unternehmensbeteiligungen > 25%" },
-  { id: "1.5", section: "Allgemein", number: "1.5", title: "Mitgliederdarlehen", description: "Formular für Mitgliederdarlehen" },
-  { id: "2.0", section: "Buchhaltung", number: "2.0", title: "Erklärung zur Führung der Bücher und Vermögenslage", description: "Formular mit Fragenkatalog zur Prüfung nach §§ 53 ff GenG" },
-  { id: "2.1", section: "Buchhaltung", number: "2.1", title: "Jahresabschlüsse", description: "alle Jahresabchlüsse des Prüfzeitraums" },
-  { id: "2.2", section: "Buchhaltung", number: "2.2", title: "Summen- & Saldenlisten", description: "passend zu den zuvor eingereichten Jahresabschlüssen" },
-  { id: "2.3", section: "Buchhaltung", number: "2.3", title: "Sachkonten", description: "passend zu den zuvor eingereichten Jahresabschlüssen" },
-  { id: "2.4", section: "Buchhaltung", number: "2.4", title: "Steuerbescheide", description: "passend zu den zuvor eingereichten Jahresabschlüssen" },
-  { id: "2.5", section: "Buchhaltung", number: "2.5", title: "Offenlegung der Jahresabschlüsse", description: "Nachweis der Offenlegung der Jahresabschlüsse im Bundesanzeiger" },
-  { id: "2.6", section: "Buchhaltung", number: "2.6", title: "aktuelle BWA", description: "maximal 3 Monate alt" },
-  { id: "3.0", section: "Mitgliederliste", number: "3.0", title: "Erklärung zur Führung der Mitgliederliste", description: "Formular mit Fragenkatalog zur Prüfung nach §§ 53 ff GenG" },
-  { id: "3.1", section: "Mitgliederliste", number: "3.1", title: "aktuelle Mitgliederliste", description: "mit Unterlagen der Zu- und Abgänge zum Zeitpunkt der Prüfung" },
-  { id: "3.2", section: "Mitgliederliste", number: "3.2", title: "Mitgliederliste zum Jahresende", description: "mit Unterlagen der Zu- und Abgänge für jedes zu prüfende Jahr" },
-  { id: "4.0", section: "Protokolle, Organe & Generalversammlung", number: "4.0", title: "Erklärung zu Organen, Geschäftsordnung und GV", description: "Formular mit Fragenkatalog zur Prüfung nach §§ 53 ff GenG" },
-  { id: "4.1", section: "Protokolle, Organe & Generalversammlung", number: "4.1", title: "Geschäftsordnung GV, Vorstand und Aufsichtsrat", description: "GO ggf. Anlagen" },
-  { id: "4.2", section: "Protokolle, Organe & Generalversammlung", number: "4.2", title: "Protokolle von Vorstands- und Aufsichtsratssitzungen", description: "Protokolle Vorstands- und Aufsichtsrats-Sitzungen ggf. Anlagen" },
-  { id: "4.3", section: "Protokolle, Organe & Generalversammlung", number: "4.3", title: "Protokolle der Generalversammlungen im Prüfzeitraum", description: "Protokolle aller GV im Prüfzeitraum ggf. Anlagen" }
-];
+const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
+const COLLECTION_ID_AUDIT_FORMS = "683f2302002cd49b3864"; 
+const COLLECTION_ID_CURRENT_AUDIT_FORM = "683f2081001dfa70dc1c";
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const { orgId } = body;
-
+    const { orgId } = await req.json();
     if (!orgId) {
-      return NextResponse.json({ success: false, error: "Missing orgId" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "orgId required" }, { status: 400 });
     }
 
-    // Group the items into phases by section
-    const groupedBySection = {};
-    for (const item of checklistItems) {
-      if (!groupedBySection[item.section]) {
-        groupedBySection[item.section] = [];
-      }
-      groupedBySection[item.section].push(item);
-    }
+    const { databases } = await getDb();
 
-    const phases = [];
-    let phaseIndex = 1;
+    // Generate unique options repeatedly used
+    const yesNoOptions = [
+      { id: ID.unique(), label: "Yes", value: "yes" },
+      { id: ID.unique(), label: "No", value: "no" }
+    ];
 
-    for (const section in groupedBySection) {
-      const items = groupedBySection[section];
-      
-      const fields = items.map((item, index) => {
-        return {
-          fieldId: `field_${phaseIndex}_${index}`,
-          componentType: "file",
-          label: `${item.number} ${item.title}`,
-          helperText: item.description,
-          required: true,
-          validation: {}
-        };
-      });
-
-      phases.push({
-        phaseId: `phase_${phaseIndex}`,
-        title: section,
-        description: `Please upload the required documents for ${section}`,
-        fields: fields
-      });
-      phaseIndex++;
-    }
-
-    const templateData = {
-      title: "Prüfung nach §§ 53 ff GenG",
-      description: "Standard checklist for cooperative statutory audit.",
+    // The complete structural mapping of all 4 easycoop-auditway-main schemas
+    const defaultSchema = {
+      title: "Prüfung nach §§ 53 ff GenG (Complete)",
+      description: "Standard checklist and full requirements for cooperative statutory audit.",
       settings: {
         collectEmail: false,
         allowMultipleSubmissions: true,
-        confirmationMessage: "Your response has been recorded."
+        confirmationMessage: "Your audit submission has been recorded."
       },
-      phases: phases
+      phases: [
+        // PHASE 1: Audit Requirements
+        {
+          phaseId: ID.unique(),
+          title: "1. Prüfungs- und Anwendungsvoraussetzungen",
+          description: "Basic audit requirements and financial compliance info.",
+          fields: [
+            { fieldId: ID.unique(), componentType: "text", label: "Cooperative Name", required: true },
+            { fieldId: ID.unique(), componentType: "text", label: "Legal Representative", required: true },
+            { fieldId: ID.unique(), componentType: "text", label: "Audit Period", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "Total Assets (Year 1)", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "Total Assets (Year 2)", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "Sales Revenue (Year 1)", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "Sales Revenue (Year 2)", required: true },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Has additional contributions?", required: true, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Has operational liability insurance?", required: true, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Is IT hardware monitored?", required: true, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Are you GDPR compliant?", required: true, options: yesNoOptions }
+          ]
+        },
+        // PHASE 2: Statutory Audit 
+        {
+          phaseId: ID.unique(),
+          title: "2. Statutory Audit Information",
+          description: "Information about members, board, and minutes.",
+          fields: [
+            { fieldId: ID.unique(), componentType: "text", label: "Club Name", required: true },
+            { fieldId: ID.unique(), componentType: "text", label: "Registration Number", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "Member Count", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "New Member Count", required: true },
+            { fieldId: ID.unique(), componentType: "number", label: "Termination Count", required: true },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Is membership list maintained?", required: false, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Does cooperative have a supervisory board?", required: false, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "text", label: "Board Chairman Name", required: false },
+            { fieldId: ID.unique(), componentType: "text", label: "Supervisory Board Chairman", required: false },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Has General Assembly occurred?", required: false, options: yesNoOptions }
+          ]
+        },
+        // PHASE 3: Books Management
+        {
+          phaseId: ID.unique(),
+          title: "3. Books Management",
+          description: "Internal controls, risks, and tax details.",
+          fields: [
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Are internal controls present?", required: true, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Are there control deficiencies?", required: true, options: [
+                { id: ID.unique(), label: "None", value: "none" },
+                { id: ID.unique(), label: "They exist", value: "exist" }
+            ]},
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Are business transactions compliant?", required: true, options: yesNoOptions },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Bookkeeping Type", required: true, options: [
+                { id: ID.unique(), label: "Internal", value: "internal" },
+                { id: ID.unique(), label: "External", value: "external" }
+            ]},
+            { fieldId: ID.unique(), componentType: "text", label: "Tax Declaration Submitted Until", required: false },
+            { fieldId: ID.unique(), componentType: "multiple_choice", label: "Has Tax Audits?", required: false, options: yesNoOptions }
+          ]
+        },
+        // PHASE 4: Document Checklist
+        {
+          phaseId: ID.unique(),
+          title: "4. Document Checklist",
+          description: "Please upload the required documents for the audit.",
+          fields: [
+            { fieldId: ID.unique(), componentType: "file", label: "Erklärung zur Prüfung- und Vollständigkeit (1.0)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Satzung (1.1)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Gewerbeanmeldung (1.2)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Registerauszug (1.3)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Immobilien und Unternehmensbeteiligungen (1.4)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Mitgliederdarlehen (1.5)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Erklärung zur Führung der Bücher (2.0)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Jahresabschlüsse (2.1)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Summen- & Saldenlisten (2.2)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Sachkonten (2.3)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Steuerbescheide (2.4)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Offenlegung der Jahresabschlüsse (2.5)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Aktuelle BWA (2.6)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Erklärung zur Führung der Mitgliederliste (3.0)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Aktuelle Mitgliederliste (3.1)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Mitgliederliste zum Jahresende (3.2)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Erklärung zu Organen, Geschäftsordnung und GV (4.0)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Geschäftsordnung GV, Vorstand und Aufsichtsrat (4.1)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Protokolle von Vorstands- und Aufsichtsratssitzungen (4.2)", required: false },
+            { fieldId: ID.unique(), componentType: "file", label: "Protokolle der Generalversammlungen (4.3)", required: false }
+          ]
+        }
+      ]
     };
 
-    // Note: auditType strictly expects "full" or "simple" based on appwrite schema.
-    const formDraft = await createAuditForm({
-      auditOrgId: orgId,
-      auditType: "full",
-      template: templateData,
-      version: new Date().getFullYear().toString() + ".0",
-    });
+    // 1. Create a DRAFT audit form document
+    const draftFormDoc = await databases.createDocument(
+      DATABASE_ID,
+      COLLECTION_ID_AUDIT_FORMS,
+      ID.unique(),
+      {
+        orgId,
+        title: "Prüfung nach §§ 53 ff GenG (Complete)",
+        description: "Generated from default template with all requirements.",
+        schema: JSON.stringify(defaultSchema),
+        version: 1,
+        auditType: "full",
+        status: "Draft",
+      }
+    );
 
-    const completedForm = await updateAuditForm(formDraft.$id, {
-      status: "Completed",
-    });
+    // 2. Set it to Completed
+    await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTION_ID_AUDIT_FORMS,
+      draftFormDoc.$id,
+      { status: "Completed" }
+    );
 
-    return NextResponse.json({ success: true, form: completedForm });
+    // 3. Mark it as the current active form
+    await databases.createDocument(
+      DATABASE_ID,
+      COLLECTION_ID_CURRENT_AUDIT_FORM,
+      ID.unique(),
+      {
+        orgId,
+        formId: draftFormDoc.$id,
+        activatedAt: new Date().toISOString(),
+      }
+    );
+
+    return NextResponse.json({ success: true, draftFormDoc });
   } catch (error) {
-    console.error("Error seeding default template:", error);
+    console.error("Default seed failed:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
