@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 const normalizeTab = (value) => {
@@ -15,6 +15,7 @@ export function useRoleDashboardTab(tabMap, defaultView) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const lastReplacedRef = useRef(null);
 
   const safeTabMap = useMemo(() => tabMap || {}, [tabMap]);
 
@@ -36,21 +37,9 @@ export function useRoleDashboardTab(tabMap, defaultView) {
 
   const [activeView, setActiveView] = useState(defaultView);
 
-  const replaceTabInUrl = useCallback(
-    (tab) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", tab);
-
-      const nextQuery = params.toString();
-      const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
-
-      router.push(nextUrl, { scroll: false });
-    },
-    [pathname, router, searchParams]
-  );
+  const currentTab = normalizeTab(searchParams.get("tab"));
 
   useEffect(() => {
-    const currentTab = normalizeTab(searchParams.get("tab"));
     const resolvedView = safeTabMap[currentTab];
 
     if (resolvedView && allowedViews.has(resolvedView)) {
@@ -60,15 +49,22 @@ export function useRoleDashboardTab(tabMap, defaultView) {
       return;
     }
 
-    if (allowedViews.has(defaultView) && activeView !== defaultView) {
-      setActiveView(defaultView);
-    }
-
     const defaultTab = viewToTab[defaultView];
     if (defaultTab && currentTab !== defaultTab) {
-      replaceTabInUrl(defaultTab);
+      if (allowedViews.has(defaultView) && activeView !== defaultView) {
+        setActiveView(defaultView);
+      }
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", defaultTab);
+      const nextQuery = params.toString();
+      const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+
+      if (lastReplacedRef.current !== nextUrl) {
+        lastReplacedRef.current = nextUrl;
+        router.replace(nextUrl, { scroll: false });
+      }
     }
-  }, [activeView, allowedViews, defaultView, replaceTabInUrl, safeTabMap, searchParams, viewToTab]);
+  }, [currentTab, safeTabMap, allowedViews, viewToTab, defaultView, activeView, pathname, router, searchParams]);
 
   const setView = useCallback(
     (nextView) => {
@@ -85,12 +81,20 @@ export function useRoleDashboardTab(tabMap, defaultView) {
         return;
       }
 
-      const currentTab = normalizeTab(searchParams.get("tab"));
-      if (currentTab !== nextTab) {
-        replaceTabInUrl(nextTab);
+      const tabInUrl = normalizeTab(searchParams.get("tab"));
+      if (tabInUrl !== nextTab) {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("tab", nextTab);
+        const nextQuery = params.toString();
+        const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+
+        if (lastReplacedRef.current !== nextUrl) {
+          lastReplacedRef.current = nextUrl;
+          router.push(nextUrl, { scroll: false });
+        }
       }
     },
-    [activeView, allowedViews, replaceTabInUrl, searchParams, viewToTab]
+    [activeView, allowedViews, pathname, router, searchParams, viewToTab]
   );
 
   return {
