@@ -30,7 +30,7 @@ async function render({ html, width, height }) {
   try {
     browser = await withTimeout(puppeteer.launch({
       headless: true,
-      executablePath: chromePath,
+      executablePath: chromePath || "chromium",
       timeout: 10_000,
       protocolTimeout: 20_000,
       args: [

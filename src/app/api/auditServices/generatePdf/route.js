@@ -374,7 +374,7 @@ export async function POST(request) {
     }
     console.error("PDF generation server error:", error);
     return NextResponse.json(
-      { success: false, error: "PDF generation failed" },
+      { success: false, error: "PDF generation failed: " + (error.message || error.toString()) },
       { status: 500 },
     );
   }
