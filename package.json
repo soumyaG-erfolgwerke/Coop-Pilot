@@ -11,6 +11,7 @@
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
     "@rive-app/react-canvas": "^4.23.1",
+    "@sparticuz/chromium": "^149.0.0",
     "@tanstack/react-table": "^8.21.3",
     "@trustcomponent/trustcaptcha-nodejs": "^3.0.0",
     "@trustcomponent/trustcaptcha-react": "^3.0.1",
