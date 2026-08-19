@@ -18,7 +18,7 @@ function withTimeout(promise, timeoutMs, message) {
 }
 
 function renderWithIsolatedService(payload) {
-  const socketPath = process.env.PDF_RENDERER_SOCKET || "/home/monujesh/.local/run/cooppilot-pdf-renderer.sock";
+  const socketPath = process.env.PDF_RENDERER_SOCKET || "/tmp/cooppilot-pdf-renderer.sock";
   const body = Buffer.from(JSON.stringify(payload));
   return withTimeout(new Promise((resolve, reject) => {
     const rendererRequest = http.request({ socketPath, path: "/render", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": body.length } }, (rendererResponse) => {

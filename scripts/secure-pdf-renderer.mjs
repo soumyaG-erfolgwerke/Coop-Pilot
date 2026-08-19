@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import puppeteer from "puppeteer";
 
-const socketPath = process.env.PDF_RENDERER_SOCKET || "/home/monujesh/.local/run/cooppilot-pdf-renderer.sock";
+const socketPath = process.env.PDF_RENDERER_SOCKET || "/tmp/cooppilot-pdf-renderer.sock";
 const chromePath = process.env.PDF_CHROME_BINARY;
 const maxInputBytes = 2_250_000;
 const maxOutputBytes = 25 * 1024 * 1024;
@@ -24,7 +24,7 @@ function withTimeout(promise, timeoutMs, message) {
 async function render({ html, width, height }) {
   if (typeof html !== "string" || Buffer.byteLength(html, "utf8") > maxInputBytes) throw new Error("Invalid renderer input");
   if (typeof width !== "string" || typeof height !== "string") throw new Error("Invalid page dimensions");
-  if (!chromePath) throw new Error("PDF_CHROME_BINARY is missing");
+  // if (!chromePath) throw new Error("PDF_CHROME_BINARY is missing");
 
   let browser;
   try {
