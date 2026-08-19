@@ -112,6 +112,29 @@ export default function AuditForms({ auditOrg, user }) {
   };
 
   // Duplicate / Clone Template Flow
+  const handleMakeActive = async (form) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/audit-forms/${form.$id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Completed" })
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success("Template is now Active!");
+        fetchForms();
+      } else {
+        toast.error(data.error || "Failed to make template active.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDuplicate = async (form) => {
     try {
       setLoading(true);
@@ -635,19 +658,29 @@ export default function AuditForms({ auditOrg, user }) {
                           <td className="px-6 py-4 pr-6 text-right">
                             <div className="flex items-center justify-end gap-2">
                               {isDraft ? (
-                                <button
-                                  onClick={() =>
-                                    window.open(
-                                      `/org/${auditOrg.id}/create/${form.auditType}/${form.$id}`,
-                                      "_blank",
-                                      "noopener,noreferrer",
-                                    )
-                                  }
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-600 dark:text-indigo-400 rounded-xl transition-all shadow-sm"
-                                >
-                                  <Edit3 size={13} />
-                                  Edit Draft
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => handleMakeActive(form)}
+                                    disabled={loading}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 dark:bg-emerald-950/40 dark:hover:bg-emerald-600 dark:text-emerald-400 rounded-xl transition-all shadow-sm disabled:opacity-50"
+                                  >
+                                    <CheckCircle2 size={13} />
+                                    Make Active
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      window.open(
+                                        `/org/${auditOrg.id}/create/${form.auditType}/${form.$id}`,
+                                        "_blank",
+                                        "noopener,noreferrer",
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:text-white bg-indigo-50 hover:bg-indigo-600 dark:bg-indigo-950/40 dark:hover:bg-indigo-600 dark:text-indigo-400 rounded-xl transition-all shadow-sm"
+                                  >
+                                    <Edit3 size={13} />
+                                    Edit Draft
+                                  </button>
+                                </>
                               ) : (
                                 <button
                                   onClick={() =>

@@ -123,11 +123,7 @@ export async function POST(req) {
       version: new Date().getFullYear().toString() + ".0",
     });
 
-    const completedForm = await updateAuditForm(formDraft.$id, {
-      status: "Completed",
-    });
-
-    return NextResponse.json({ success: true, form: completedForm });
+    return NextResponse.json({ success: true, form: formDraft });
   } catch (error) {
     console.error("Error seeding default template:", error);
     return NextResponse.json(
