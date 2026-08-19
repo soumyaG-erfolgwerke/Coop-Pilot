@@ -479,7 +479,7 @@ function MemberPage() {
     };
 
     fetchCoops();
-  }, [user]);
+  }, [user?.userId]);
 
   const filteredCoops = selectedCoop
     ? coops.filter((c) => c.coopId === selectedCoop)
