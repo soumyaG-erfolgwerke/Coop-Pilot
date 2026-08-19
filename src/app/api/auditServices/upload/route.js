@@ -63,7 +63,7 @@ export async function POST(request) {
     if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error uploading file:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to upload file" },
+      { success: false, error: "Failed to upload file: " + (error.message || error.toString()) },
       { status: 500 }
     );
   }
