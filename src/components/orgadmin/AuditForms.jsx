@@ -290,6 +290,34 @@ export default function AuditForms({ auditOrg, user }) {
             />
           </button>
           <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                const res = await fetch("/api/audit-forms/seed-default", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ orgId: auditOrg.id }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                  toast.success("Default template loaded successfully!");
+                  fetchForms();
+                } else {
+                  toast.error(data.error || "Failed to load default template");
+                }
+              } catch (err) {
+                toast.error("Error loading default template");
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 rounded-xl shadow-md shadow-emerald-500/20 transition-all hover:-translate-y-0.5 disabled:opacity-50"
+          >
+            <FileText size={18} />
+            Load Default Template
+          </button>
+          <button
             onClick={() => setIsSelectingType(true)}
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 transition-all hover:-translate-y-0.5"
           >
@@ -319,6 +347,33 @@ export default function AuditForms({ auditOrg, user }) {
           </p>
 
           <div className="flex flex-col items-center justify-center w-full gap-4 sm:flex-row sm:w-auto">
+            <button
+              onClick={async () => {
+                try {
+                  setLoading(true);
+                  const res = await fetch("/api/audit-forms/seed-default", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ orgId: auditOrg.id }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    toast.success("Default template loaded successfully!");
+                    fetchForms();
+                  } else {
+                    toast.error(data.error || "Failed to load default template");
+                  }
+                } catch (err) {
+                  toast.error("Error loading default template");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              className="w-full sm:w-auto px-10 py-3.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 rounded-xl shadow-sm shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-50"
+            >
+              <FileText size={18} /> Load Default Template
+            </button>
             <button
               onClick={() => setIsSelectingType(true)}
               className="w-full sm:w-auto px-10 py-3.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl shadow-sm shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5"
