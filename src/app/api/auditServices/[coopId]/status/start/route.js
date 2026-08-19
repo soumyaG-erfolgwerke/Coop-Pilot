@@ -53,8 +53,22 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const auditTemplateId = auditTemplate.documents[0].auditForms?.$id;
-    const auditTemplateData = auditTemplate.documents[0].auditForms?.template;
+    let auditTemplateId = auditTemplate.documents[0].auditForms?.$id;
+    let auditTemplateData = auditTemplate.documents[0].auditForms?.template;
+
+    if (!auditTemplateId && typeof auditTemplate.documents[0].auditForms === 'string') {
+      auditTemplateId = auditTemplate.documents[0].auditForms;
+    }
+
+    if (!auditTemplateData && auditTemplateId) {
+      try {
+        const { databases, COLLECTION_ID_AUDIT_FORMS } = await import("@/lib/appwrite-server");
+        const fullForm = await databases.getDocument(DATABASE_ID, COLLECTION_ID_AUDIT_FORMS, auditTemplateId);
+        auditTemplateData = fullForm.template;
+      } catch (err) {
+        console.error("Failed to fetch full form for template", err);
+      }
+    }
 
     let parsedTemplate = {};
     try {
