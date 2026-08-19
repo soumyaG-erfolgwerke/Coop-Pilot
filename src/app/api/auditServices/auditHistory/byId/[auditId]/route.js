@@ -166,7 +166,7 @@ export async function PATCH(request, { params }) {
     return NextResponse.json(
       {
         success: false,
-        error: safePublicError(error, "Failed to update report data"),
+        error: "Failed to update report data: " + (error.message || error.toString()),
       },
       { status: 500 }
     );
