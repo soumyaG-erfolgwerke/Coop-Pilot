@@ -9,8 +9,8 @@ const navData = [
   {
     id: 1,
     title: "Product",
-    items: ["Compliance", "Pricing"],
-    links: ["/compliance", "/pricing"],
+    items: ["Compliance" /*, "Pricing"*/],
+    links: ["/compliance" /*, "/pricing"*/],
   },
   {
     id: 2,
@@ -119,8 +119,8 @@ export default function Footer() {
 
         <p className="w-full text-center font-serif text-base font-normal tracking-wide text-white p-1">
           Email:{" "}
-          <a href="mailto:info@hystandards.de" className="hover:underline">
-            info@hystandards.de
+          <a href="mailto:info@coop-pilot.de" className="hover:underline">
+            info@coop-pilot.de
           </a>
         </p>
       </div>
