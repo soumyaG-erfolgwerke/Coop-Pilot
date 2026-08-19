@@ -12,7 +12,7 @@ const MAX_AUDIT_UPLOAD_BYTES = 15 * 1024 * 1024;
 // POST /api/auditServices/upload - Upload audit file
 export async function POST(request) {
   try {
-    requireRole(await resolveSession(), ["superuser", "superadmin", "org_admin", "auditer", "aud_E"]);
+    requireRole(await resolveSession(), ["superuser", "superadmin", "org_admin", "auditer", "aud_E", "coopadmin"]);
     const formData = await request.formData();
     const file = formData.get("file");
 
