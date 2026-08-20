@@ -1,4 +1,4 @@
-import { data, membersData } from "./NavData";
+import { data } from "./NavData";
 
 export const NavLinks = [
   {
@@ -18,8 +18,8 @@ export const NavLinks = [
     title: "for members",
     href: "/for-member",
     tag: "members",
-    toggle: true,
-    data: membersData,
+    toggle: false,
+    // data: data,
   },
   {
     title: "pricing",
