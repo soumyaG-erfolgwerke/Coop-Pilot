@@ -105,7 +105,7 @@ export async function POST(request) {
     const user = await users.get(session.userId);
     const userLabels = user.labels || [];
 
-    const isOrgAdmin = userLabels.includes("orgAdmin");
+    let isOrgAdmin = userLabels.includes("orgAdmin");
     const isTeamMember = userLabels.includes("teamMember");
 
     // Fetch profile data from database
@@ -167,6 +167,17 @@ export async function POST(request) {
       }
     } catch (profileError) {
       console.error("Failed to fetch profile:", profileError.message);
+    }
+
+    // Auto-heal missing Appwrite labels for backwards compatibility
+    if (fetchedRole === "org_admin" && !isOrgAdmin) {
+      try {
+        await users.updateLabels(session.userId, Array.from(new Set([...userLabels, "orgAdmin"])));
+        isOrgAdmin = true;
+        console.log(`Auto-healed orgAdmin label for user ${session.userId}`);
+      } catch (healErr) {
+        console.error("Failed to auto-heal orgAdmin label:", healErr.message);
+      }
     }
 
     const restrictedRoles = ["auditer", "aud_E", "aud_T", "org_admin"];
