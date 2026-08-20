@@ -18,12 +18,11 @@ export async function POST(request) {
 
     if (
       !file ||
-      file.type !== "application/pdf" ||
       file.size < 1 ||
       file.size > MAX_AUDIT_UPLOAD_BYTES
     ) {
       return NextResponse.json(
-        { success: false, error: "A PDF no larger than 15 MB is required" },
+        { success: false, error: "A file no larger than 15 MB is required" },
         { status: 400 }
       );
     }
@@ -35,7 +34,7 @@ export async function POST(request) {
     const buffer = Buffer.from(bytes);
     if (!hasExpectedFileSignature(buffer, file.type)) {
       return NextResponse.json(
-        { success: false, error: "File content does not match a PDF" },
+        { success: false, error: "File content does not match its claimed type" },
         { status: 400 },
       );
     }
@@ -45,7 +44,7 @@ export async function POST(request) {
     // failure caused by Next.js bundling duplicating the InputFile class.
     // The node-appwrite SDK's chunkedUpload accepts both InputFile and
     // native File (undici.File), so this is fully compatible.
-    const nativeFile = new File([buffer], file.name, { type: "application/pdf" });
+    const nativeFile = new File([buffer], file.name, { type: file.type });
 
     // Upload the file to Appwrite Storage
     const uploadedFile = await storage.createFile(
