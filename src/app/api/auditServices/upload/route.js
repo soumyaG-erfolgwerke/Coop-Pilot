@@ -54,8 +54,9 @@ export async function POST(request) {
       nativeFile
     );
 
-    // Construct the public URL for the file
-    const fileUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
+    // Construct the public absolute URL for the file so Appwrite's URL validation doesn't fail
+    const relativeUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
+    const fileUrl = `${request.nextUrl.origin}${relativeUrl}`;
 
     return NextResponse.json({ 
       success: true, 
