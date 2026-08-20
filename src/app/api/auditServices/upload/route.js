@@ -56,9 +56,15 @@ export async function POST(request) {
 
     // Construct the public absolute URL for the file so Appwrite's URL validation doesn't fail
     const relativeUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
-    const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
-    const protocol = request.headers.get("x-forwarded-proto") || "http";
-    const fileUrl = `${protocol}://${host}${relativeUrl}`;
+    let baseUrl = request.headers.get("origin");
+    if (!baseUrl && request.headers.get("referer")) {
+      baseUrl = new URL(request.headers.get("referer")).origin;
+    }
+    if (!baseUrl || baseUrl.includes("0.0.0.0")) {
+      // Fallback if browser headers are somehow missing or proxy strips them
+      baseUrl = process.env.NODE_ENV === "production" ? "https://easy-coop.de" : "http://localhost:3000";
+    }
+    const fileUrl = `${baseUrl}${relativeUrl}`;
 
     return NextResponse.json({ 
       success: true, 
