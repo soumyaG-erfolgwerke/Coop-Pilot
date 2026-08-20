@@ -908,111 +908,168 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
       onClose={onClose}
       overlayClassName="bg-black/60 backdrop-blur-sm p-4"
     >
-      <div className="w-full max-w-md p-6 bg-white shadow-2xl dark:bg-slate-800 sm:p-8 rounded-xl">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-            {language === "de" ? "Anmelden" : "Sign In"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
-          >
-            <X size={22} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="w-full max-w-4xl bg-white shadow-2xl dark:bg-slate-800 rounded-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2">
+        {/* Left Column: Form */}
+        <div className="p-6 sm:p-8 flex flex-col justify-between">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-              {language === "de" ? "E-Mail-Adresse" : "Email Address"}
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border rounded-md shadow-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 focus:ring-2 focus:ring-primary"
-                placeholder="you@example.com"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-              {language === "de" ? "Passwort" : "Password"}
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="block w-full pl-10 pr-10 py-2.5 border rounded-md shadow-sm bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-600 focus:ring-2 focus:ring-primary"
-                placeholder="••••••••"
-              />
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {language === "de" ? "Anmelden" : "Sign in"}
+                </h2>
+                <p className="text-sm font-medium text-gray-400 mt-0.5">
+                  {language === "de" ? "als Mitglied" : "as a member"}
+                </p>
+              </div>
               <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-gray-400"
+                onClick={onClose}
+                className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
               >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                <X size={22} />
               </button>
             </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4 mt-6">
+              <div>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full px-4 py-3 border rounded-xl shadow-sm bg-gray-50/50 dark:bg-slate-700 border-gray-200 dark:border-slate-600 focus:ring-2 focus:ring-[#6b1d38] text-sm"
+                  placeholder={language === "de" ? "E-Mail-Adresse oder Handynummer eingeben" : "Enter email address or mobile number"}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    {language === "de" ? "Passwort eingeben" : "Enter Password"}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={onForgotPasswordClick}
+                    className="text-xs font-semibold text-red-600 hover:underline"
+                  >
+                    {language === "de" ? "Passwort vergessen?" : "Forgot Password?"}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full px-4 py-3 border rounded-xl shadow-sm bg-gray-50/50 dark:bg-slate-700 border-gray-200 dark:border-slate-600 focus:ring-2 focus:ring-[#6b1d38] text-sm"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-gray-400"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 text-sm text-red-500">
+                  <AlertCircle size={16} />
+                  <p>{error}</p>
+                </div>
+              )}
+
+              {/* Social Login Display Icons */}
+              <div className="pt-2">
+                <p className="text-xs font-semibold text-gray-700 text-center mb-3">
+                  {language === "de" ? "oder anmelden mit" : "or sign in using"}
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  {/* Google Icon */}
+                  <button type="button" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"/>
+                      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"/>
+                      <path fill="#FBBC05" d="M5.6 14.8c-.3-.8-.4-1.8-.4-2.8s.1-2 .4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"/>
+                      <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/>
+                    </svg>
+                  </button>
+                  {/* Facebook Icon */}
+                  <button type="button" className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center hover:bg-blue-100 transition-colors">
+                    <svg className="w-4 h-4 text-blue-600 fill-current" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                  </button>
+                  {/* Apple Icon */}
+                  <button type="button" className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+                    <svg className="w-4 h-4 text-black fill-current" viewBox="0 0 24 24">
+                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.85c.67-.82 1.13-1.96.99-3.1-.98.04-2.19.66-2.88 1.47-.62.72-1.16 1.89-.99 3.01 1.09.08 2.22-.56 2.88-1.38z"/>
+                    </svg>
+                  </button>
+                  {/* Mail Icon */}
+                  <button type="button" className="w-9 h-9 rounded-full bg-sky-50 flex items-center justify-center hover:bg-sky-100 transition-colors">
+                    <Mail className="w-4 h-4 text-sky-600" />
+                  </button>
+                </div>
+              </div>
+
+              {isDeployment && (
+                <TrustcaptchaComponent
+                  captchaToken={captchaToken}
+                  onCaptchaSolved={(event) => setCaptchaToken(event.detail)}
+                  onCaptchaFailed={() => setCaptchaToken("")}
+                />
+              )}
+
+              <button
+                type="submit"
+                className="flex items-center justify-center w-full px-6 py-3 text-white bg-[#6b1d38] hover:bg-[#58182e] rounded-xl font-medium transition-all shadow-md active:scale-95"
+              >
+                {language === "de" ? "Absenden" : "Submit"}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Right Column: 2FA Info Banner */}
+        <div className="p-6 sm:p-8 bg-gray-50/70 dark:bg-slate-900 border-l border-gray-100 dark:border-slate-700 flex flex-col justify-between items-center text-center">
+          <div className="w-full flex justify-end">
+            <h3 className="text-xl font-bold text-primary dark:text-dark-tint">Coop-Pilot</h3>
           </div>
 
-          {error && (
-            <div className="flex items-center gap-2 text-sm text-red-500">
-              <AlertCircle size={16} />
-              <p>{error}</p>
+          <div className="my-6 max-w-xs flex flex-col items-center">
+            {/* 2FA Fingerprint Security Illustration */}
+            <div className="relative w-48 h-40 flex items-center justify-center mb-6">
+              <div className="w-28 h-36 bg-blue-500/10 rounded-2xl border-2 border-blue-500/30 flex items-center justify-center p-2">
+                <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457-.39-2.823-1.07-4" />
+                  </svg>
+                </div>
+              </div>
             </div>
-          )}
 
-          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+              {language === "de" ? "Zwei-Faktor-Authentifizierung" : "Two Factor Authentication"}
+            </h3>
+
+            <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              {language === "de"
+                ? "Schützen Sie Ihr Konto mit der Zwei-Faktor-Authentifizierung (2FA), die über Ihr Passwort hinaus zusätzliche Sicherheit bietet."
+                : "Protect your account with Two-Factor Authentication (2FA), adding an extra layer of security beyond your password. Secure verification helps prevent unauthorized access to your cooperative data."}
+            </p>
+
             <button
               type="button"
-              onClick={onForgotPasswordClick}
-              className="text-sm text-blue-600 hover:underline"
+              className="mt-6 px-4 py-2 text-xs font-semibold text-[#6b1d38] border border-[#6b1d38] hover:bg-[#6b1d38]/5 rounded-xl transition-all"
             >
-              {language === "de" ? "Passwort vergessen?" : "Forgot your password?"}
+              {language === "de" ? "Zwei-Faktor-Authentifizierung testen" : "Try Two - Factor Authentication"}
             </button>
           </div>
 
-          {isDeployment && (
-            <>
-              {/* TrustCaptcha temporarily disabled.
-                  Google reCAPTCHA is currently the active provider.
-                  Existing implementation retained for future use.
-              <TrustcaptchaComponent
-                sitekey={process.env.NEXT_PUBLIC_TRUST_CAPTCHA_SITE_KEY}
-                onCaptchaSolved={(event) => {
-                  setCaptchaToken(event.detail);
-                }}
-                onCaptchaFailed={() => {
-                  setCaptchaToken("");
-                }}
-              />
-              */}
-              <TrustcaptchaComponent
-                captchaToken={captchaToken}
-                onCaptchaSolved={(event) => {
-                  setCaptchaToken(event.detail);
-                }}
-                onCaptchaFailed={() => {
-                  setCaptchaToken("");
-                }}
-              />
-            </>
-          )}
-          <button
-            type="submit"
-            className="flex items-center justify-center w-full px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            <LogIn className="w-5 h-5 mr-2" /> {language === "de" ? "Anmelden" : "Sign in"}
-          </button>
-        </form>
+          <div />
+        </div>
       </div>
     </FadePopUp>
   );
