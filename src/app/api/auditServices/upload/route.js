@@ -56,7 +56,9 @@ export async function POST(request) {
 
     // Construct the public absolute URL for the file so Appwrite's URL validation doesn't fail
     const relativeUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
-    const fileUrl = `${request.nextUrl.origin}${relativeUrl}`;
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+    const protocol = request.headers.get("x-forwarded-proto") || "http";
+    const fileUrl = `${protocol}://${host}${relativeUrl}`;
 
     return NextResponse.json({ 
       success: true, 
