@@ -21,18 +21,22 @@ export const NavLinks = [
     toggle: false,
     // data: data,
   },
-  /*{
+  {
     title: "pricing",
-    href: "/pricing",
+    href: "#",
     tag: "pricing",
     toggle: false,
-    // data: data,
-  },*/
+  },
+  {
+    title: "blogs",
+    href: "#",
+    tag: "blogs",
+    toggle: false,
+  },
   {
     title: "about",
     tag: "about",
     href: "/about",
     toggle: false,
-    // data: data,
   },
 ];

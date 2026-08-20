@@ -128,7 +128,7 @@ const Navbar = () => {
             </Link>
             <Link href="/choose-role">
               <ButtonFlippedRevealV2 className="p-2 px-4 border-[2px] border-primary bg-primary text-white font-semibold">
-                <p className="px-2">{t("Sign Up")}</p>
+                <p className="px-2">{t("Try for Free")}</p>
               </ButtonFlippedRevealV2>
             </Link>
           </div>
