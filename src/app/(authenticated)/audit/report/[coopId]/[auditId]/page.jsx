@@ -138,7 +138,7 @@ const generateCoverPageHtml = (macros, auditOrg) => {
 
   return `
     <div class="flex-1 flex flex-col justify-center text-center my-auto h-full w-full font-sans p-16" style="display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; text-align: center !important; height: 100% !important; width: 100% !important; font-family: 'Outfit', 'Inter', sans-serif !important; padding: 40px !important; box-sizing: border-box !important;">
-      <img src="${auditOrg?.logo_url || ""}" alt="Logo" style="width: 140px !important; height: 140px !important; margin: 10px auto !important; display: block !important;" />
+      ${auditOrg?.logo_url ? `<img src="${auditOrg.logo_url}" alt="Logo" style="width: 140px !important; height: 140px !important; margin: 10px auto !important; display: block !important;" />` : ''}
       <h1 class="text-4xl font-extrabold text-blue-800 tracking-wider mb-2 text-center" style="font-size: 3.2rem !important; line-height: 1 !important; color: #0033a0 !important; font-weight: 800 !important; letter-spacing: 0.05em !important; margin-bottom: 8px !important; text-align: center !important;">
         PRÜFUNGSBERICHT
       </h1>
