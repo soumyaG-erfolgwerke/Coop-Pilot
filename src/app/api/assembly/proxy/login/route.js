@@ -9,6 +9,7 @@ import {
 } from "@/lib/appwrite-server";
 import { Query } from "node-appwrite";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { getCaptchaProvider } from "@/lib/captcha/provider";
 
 export async function POST(request) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request) {
       );
     }
 
-    if (!captchaToken && process.env.NODE_ENV === "production") {
+    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },

@@ -9,6 +9,7 @@ import {
   COLLECTION_ID_AUDITTEAM_MEMBERS,
 } from "@/lib/appwrite-server";
 import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+import { getCaptchaProvider } from "@/lib/captcha/provider";
 import { logger } from "@/lib/logger";
 import { verifyMonitorAuthProof } from "@/lib/dev-console/monitor-auth";
 
@@ -28,7 +29,7 @@ export async function POST(request) {
       );
     }
 
-    if (!trustedDemoMonitor && !captchaToken && process.env.NODE_ENV === "production") {
+    if (!trustedDemoMonitor && !captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
       return NextResponse.json(
         { error: "Captcha token is required" },
         { status: 400 },
