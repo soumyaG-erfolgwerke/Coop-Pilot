@@ -270,7 +270,7 @@ export async function POST(request) {
     }
 
     return NextResponse.json(
-      { error: "Invalid email, password, or account access", debugProject: process.env.APPWRITE_PROJECT_ID },
+      { error: `Invalid email, password, or account access. [Project: ${process.env.APPWRITE_PROJECT_ID}]` },
       { status: 401 },
     );
   }
