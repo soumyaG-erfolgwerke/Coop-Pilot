@@ -118,37 +118,29 @@ export default function HeroSection() {
       </div>
 
       {/* Stats Footer */}
-      <div className="bg-[#455A64]">
+      {/* <div className="bg-[#4f6271]">
         <div className="grid grid-cols-2 px-6 py-8 text-white gap-y-8 md:grid-cols-4">
           <div className="text-center">
             <h3 className="text-[42px] font-bold leading-none">22000+</h3>
-            <p className="mt-2 text-sm text-slate-200">
-              {language === "de" ? "Vertraut von Unternehmen" : "Trusted by Companies"}
-            </p>
+            <p className="mt-2 text-sm text-slate-200">Trusted by Companies</p>
           </div>
 
           <div className="text-center">
             <h3 className="text-[42px] font-bold leading-none">1M+</h3>
-            <p className="mt-2 text-sm text-slate-200">
-              {language === "de" ? "Glückliche Kunden" : "Happy Customers"}
-            </p>
+            <p className="mt-2 text-sm text-slate-200">Happy Customers</p>
           </div>
 
           <div className="text-center">
             <h3 className="text-[42px] font-bold leading-none">$3000</h3>
-            <p className="mt-2 text-sm text-slate-200">
-              {language === "de" ? "Jährlicher Umsatz" : "Yearly Revenue"}
-            </p>
+            <p className="mt-2 text-sm text-slate-200">Yearly Revenue</p>
           </div>
 
           <div className="text-center">
             <h3 className="text-[42px] font-bold leading-none">10+</h3>
-            <p className="mt-2 text-sm text-slate-200">
-              {language === "de" ? "Vertrauenswürdige Partner" : "Trusted Partners"}
-            </p>
+            <p className="mt-2 text-sm text-slate-200">Trusted Partners</p>
           </div>
         </div>
-      </div>
+      </div> */}
     </section>
   );
 }
