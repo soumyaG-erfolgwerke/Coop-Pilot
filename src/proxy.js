@@ -61,6 +61,7 @@ function isCrossSiteMutation(request) {
 }
 
 function isPublicApiRequest(method, pathname) {
+  if (pathname.startsWith('/api/dev-console/')) return true;
   const exact = new Set([
     '/api/auth/login', '/api/auth/register',
     '/api/sector', '/api/states',

@@ -53,8 +53,22 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const auditTemplateId = auditTemplate.documents[0].auditForms?.$id;
-    const auditTemplateData = auditTemplate.documents[0].auditForms?.template;
+    let auditTemplateId = auditTemplate.documents[0].auditForms?.$id;
+    let auditTemplateData = auditTemplate.documents[0].auditForms?.template;
+
+    if (!auditTemplateId && typeof auditTemplate.documents[0].auditForms === 'string') {
+      auditTemplateId = auditTemplate.documents[0].auditForms;
+    }
+
+    if (!auditTemplateData && auditTemplateId) {
+      try {
+        const { databases, COLLECTION_ID_AUDIT_FORMS } = await import("@/lib/appwrite-server");
+        const fullForm = await databases.getDocument(DATABASE_ID, COLLECTION_ID_AUDIT_FORMS, auditTemplateId);
+        auditTemplateData = fullForm.template;
+      } catch (err) {
+        console.error("Failed to fetch full form for template", err);
+      }
+    }
 
     let parsedTemplate = {};
     try {
@@ -66,6 +80,29 @@ export async function PATCH(request, { params }) {
     }
     parsedTemplate.auditType = formType;
 
+    const { getAuditerIdForCoop, getSubAuditorIds } = await import("@/services/auditOrgServices/getAuditorDetails");
+    const [auditorId, subAuditorIds] = await Promise.all([
+      getAuditerIdForCoop(coopId),
+      getSubAuditorIds(coopId),
+    ]);
+
+    const { ID } = await import("node-appwrite");
+    const auditHistoryDoc = await databases.createDocument(
+      DATABASE_ID,
+      "6a184c0200214ea76983", // COLLECTION_ID_AUDIT_HISTORY
+      ID.unique(),
+      {
+        coopId,
+        status: "START",
+        auditJson: JSON.stringify(parsedTemplate),
+        auditorId,
+        subAuditorIds,
+        auditOrgId: assignedOrgId,
+        auditFormId: auditTemplateId,
+        macros: "[]",
+      },
+    );
+
     const updatedDocument = await databases.updateDocument(
       DATABASE_ID,
       COLLECTION_ID_COOPERATIVES,
@@ -74,6 +111,7 @@ export async function PATCH(request, { params }) {
         auditStatus: "START",
         auditFormId: auditTemplateId,
         auditJson: JSON.stringify(parsedTemplate),
+        currentAuditId: auditHistoryDoc.$id,
       },
     );
 

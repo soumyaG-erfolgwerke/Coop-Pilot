@@ -4,6 +4,7 @@ import {
   createAdminClient,
   DATABASE_ID,
   COLLECTION_ID_ASSEMBLY_VOTES,
+  COLLECTION_ID_ASSEMBLY_VOTE_CASTS,
   COLLECTION_ID_ASSEMBLY_ATTENDANCE,
 } from "@/lib/appwrite-server";
 import { sessionErrorResponse } from "@/lib/auth/session";
@@ -57,7 +58,12 @@ export async function GET(request) {
         }
       }
 
-      const hasVoted = doc.votes?.includes(userId);
+      const castResult = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_ID_ASSEMBLY_VOTE_CASTS,
+        [Query.equal("pollId", doc.$id), Query.equal("userId", userId), Query.limit(1)],
+      );
+      const hasVoted = castResult.total > 0;
       const endTime = doc.endTime ? new Date(doc.endTime) : null;
       const status =
         doc.status || (endTime && endTime > now ? "live" : "closed");

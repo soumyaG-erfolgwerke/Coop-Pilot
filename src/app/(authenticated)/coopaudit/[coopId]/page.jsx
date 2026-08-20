@@ -5,7 +5,6 @@ export const metadata = {
   description: "Audit cooperative details",
 };
 
-export default function CoopAudit({ params }) {
-  return <ProtectedCoopAuditRoute params={params} />;
-  // TODO: ASKED_TO_RESUBMIT, VERIFIED, or REJECTED -> block access from auditors
+export default function CoopAudit() {
+  return <ProtectedCoopAuditRoute />;
 }

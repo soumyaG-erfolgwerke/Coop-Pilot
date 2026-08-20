@@ -346,6 +346,8 @@ export const COLLECTION_ID_ASSEMBLY_ATTENDANCE =
   "assembly_attendance";
 export const COLLECTION_ID_ASSEMBLY_VOTES =
   process.env.APPWRITE_COLLECTION_ID_ASSEMBLY_VOTES || "assembly_votes";
+export const COLLECTION_ID_ASSEMBLY_VOTE_CASTS =
+  process.env.APPWRITE_COLLECTION_ID_ASSEMBLY_VOTE_CASTS || "assembly_vote_casts";
 export const COLLECTION_ID_NIEDERSCHRIFT = "niederschrift";
 export const COLLECTION_ID_ASSEMBLY_PROXIES = "assembly_proxy";
 export const AUDIT_BUCKET_ID = "6918a3360027dc0888aa";

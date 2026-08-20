@@ -2,10 +2,10 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 
-const socketPath = process.env.PDF_RENDERER_SOCKET || "/home/monujesh/.local/run/cooppilot-pdf-renderer.sock";
-const chromePath = process.env.PDF_CHROME_BINARY;
+const socketPath = process.env.PDF_RENDERER_SOCKET || "/tmp/cooppilot-pdf-renderer.sock";
 const maxInputBytes = 2_250_000;
 const maxOutputBytes = 25 * 1024 * 1024;
 let rendering = false;
@@ -24,32 +24,17 @@ function withTimeout(promise, timeoutMs, message) {
 async function render({ html, width, height }) {
   if (typeof html !== "string" || Buffer.byteLength(html, "utf8") > maxInputBytes) throw new Error("Invalid renderer input");
   if (typeof width !== "string" || typeof height !== "string") throw new Error("Invalid page dimensions");
-  if (!chromePath) throw new Error("PDF_CHROME_BINARY is missing");
 
   let browser;
   try {
+    const executablePath = await chromium.executablePath();
     browser = await withTimeout(puppeteer.launch({
-      headless: true,
-      executablePath: chromePath,
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: executablePath,
+      headless: chromium.headless,
       timeout: 10_000,
       protocolTimeout: 20_000,
-      args: [
-        "--no-sandbox",
-        "--disable-background-networking",
-        "--disable-breakpad",
-        "--disable-component-update",
-        "--disable-default-apps",
-        "--disable-dev-shm-usage",
-        "--disable-domain-reliability",
-        "--disable-extensions",
-        "--disable-features=OptimizationHints,MediaRouter,Translate",
-        "--disable-gpu",
-        "--disable-sync",
-        "--font-render-hinting=none",
-        "--metrics-recording-only",
-        "--no-default-browser-check",
-        "--no-first-run",
-      ],
     }), 12_000, "Renderer launch timed out");
 
     const page = await browser.newPage();
