@@ -25,7 +25,13 @@ const formatAnswerForPDF = (field) => {
     case "doc_upload":
     case "file_upload":
       const files = Array.isArray(field.answer) ? field.answer : [field.answer];
-      return files.map((f) => f.fileName || "Attached Document").join("\n");
+      return files
+        .map((f) => {
+          const name = f.fileName || "Attached Document";
+          const url = f.url || f.fileUrl;
+          return url ? `${name}\nURL: ${url}` : name;
+        })
+        .join("\n\n");
 
     default:
       return String(field.answer);
