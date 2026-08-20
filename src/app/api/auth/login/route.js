@@ -269,9 +269,8 @@ export async function POST(request) {
       console.error("Failed to write login failure log:", logErr.message);
     }
 
-    const keySuffix = process.env.APPWRITE_API_KEY ? process.env.APPWRITE_API_KEY.slice(-4) : 'none';
     return NextResponse.json(
-      { error: `Invalid email, password, or account access. [Project: ${process.env.APPWRITE_PROJECT_ID}] [Endpoint: ${process.env.APPWRITE_ENDPOINT}] [Key: ${keySuffix}]` },
+      { error: "Invalid email, password, or account access." },
       { status: 401 },
     );
   }
