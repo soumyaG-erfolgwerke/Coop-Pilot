@@ -97,3 +97,43 @@ export const data = [
     ],
   },
 ];
+
+export const membersData = [
+  {
+    id: 1,
+    enable: true,
+    title: "GET STARTED",
+    info: [
+      {
+        id: "M1_01",
+        enable: true,
+        icon: (
+          <Shapes className="w-10 h-10 p-2 m-2 text-primary bg-[#ffeff5] rounded-xl" />
+        ),
+        link: "#",
+        heading: "What is cooperative?",
+        description: "Learn basic steps what is cooperative.",
+      },
+      {
+        id: "M1_02",
+        enable: true,
+        icon: (
+          <ArrowRight className="w-10 h-10 p-2 m-2 text-primary bg-[#ffeff5] rounded-xl" />
+        ),
+        link: "/member-signup",
+        heading: "Become a member",
+        description: "Discover cooperatives & become co-owner.",
+      },
+      {
+        id: "M1_03",
+        enable: true,
+        icon: (
+          <FileSearch className="w-10 h-10 p-2 m-2 text-primary bg-[#ffeff5] rounded-xl" />
+        ),
+        link: "/explore",
+        heading: "Member dashboard",
+        description: "Access share status & documents.",
+      },
+    ],
+  },
+];

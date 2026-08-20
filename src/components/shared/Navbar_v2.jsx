@@ -121,16 +121,33 @@ const Navbar = () => {
           <div className="w-[3px] h-8 bg-slate-200 rounded-full mx-1" />
           
           <div className="flex flex-row items-center justify-center gap-2">
-            <Link href="https://cal.eu/hystandards/30min">
-              <ButtonFlippedRevealV2 className="p-2 border-[2px] border-primary text-primary font-semibold capitalize">
-                <p className="px-2">{t("Book free Demo")}</p>
-              </ButtonFlippedRevealV2>
-            </Link>
-            <Link href="/choose-role">
-              <ButtonFlippedRevealV2 className="p-2 px-4 border-[2px] border-primary bg-primary text-white font-semibold">
-                <p className="px-2">{t("Try for Free")}</p>
-              </ButtonFlippedRevealV2>
-            </Link>
+            {pathname.startsWith("/for-member") ? (
+              <>
+                <Link href="/member-signup">
+                  <ButtonFlippedRevealV2 className="p-2 border-[2px] border-primary text-primary font-semibold capitalize">
+                    <p className="px-2">{t("Register as member")}</p>
+                  </ButtonFlippedRevealV2>
+                </Link>
+                <Link href="/signinpage">
+                  <ButtonFlippedRevealV2 className="p-2 px-4 border-[2px] border-[#6b1d38] bg-[#6b1d38] hover:bg-[#58182e] text-white font-semibold">
+                    <p className="px-2">{t("Sign In")}</p>
+                  </ButtonFlippedRevealV2>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="https://cal.eu/hystandards/30min">
+                  <ButtonFlippedRevealV2 className="p-2 border-[2px] border-primary text-primary font-semibold capitalize">
+                    <p className="px-2">{t("Book free Demo")}</p>
+                  </ButtonFlippedRevealV2>
+                </Link>
+                <Link href="/choose-role">
+                  <ButtonFlippedRevealV2 className="p-2 px-4 border-[2px] border-primary bg-primary text-white font-semibold">
+                    <p className="px-2">{t("Try for Free")}</p>
+                  </ButtonFlippedRevealV2>
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
