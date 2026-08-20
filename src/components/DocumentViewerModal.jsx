@@ -5,8 +5,11 @@ import { X, Download, Maximize2, ExternalLink, FileText, Info } from "lucide-rea
 export default function DocumentViewerModal({ isOpen, onClose, fileUrl, fileName, fileType }) {
   if (!isOpen) return null;
 
-  const isImage = fileUrl?.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i) || fileType?.includes('image');
-  const isPdf = fileUrl?.match(/\.(pdf)$/i) || fileType?.includes('pdf');
+  const imageRegex = /\.(jpeg|jpg|gif|png|webp|svg)$/i;
+  const pdfRegex = /\.(pdf)$/i;
+  
+  const isImage = fileUrl?.match(imageRegex) || fileName?.match(imageRegex) || fileType?.match(/(image|jpeg|jpg|png|gif|webp|svg)/i);
+  const isPdf = fileUrl?.match(pdfRegex) || fileName?.match(pdfRegex) || fileType?.match(/(pdf)/i);
 
   return (
     <FadePopUp

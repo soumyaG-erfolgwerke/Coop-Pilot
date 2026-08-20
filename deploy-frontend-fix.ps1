@@ -1,0 +1,1 @@
+.\scripts\deploy-monujesh-vps.ps1 -ReleaseName "fix-audit-history-button" -Files "src/components/orgadmin/coops/CoopHistory.jsx,src/app/(authenticated)/audit/[coopId]/[auditId]/page.jsx,src/app/api/auditServices/[coopId]/status/start/route.js"

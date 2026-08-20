@@ -53,7 +53,7 @@ export async function GET(req) {
 
     // ---- AuthN (session cookie) ----
     const session = await getSession();
-    if (!session?.userId) return resUnauthorized();
+    if (!session?.cookieValue && !session?.secret) return resUnauthorized();
 
     const user = await resolveUser(session);
     if (!user?.email) return resUnauthorized();

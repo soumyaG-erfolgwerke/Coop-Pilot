@@ -23,7 +23,7 @@ import TicketsByCoopModal from "@/components/AuditerPage/TicketsByCoopModal";
 import AuditReportModal from "@/components/AuditerPage/AuditReportModal";
 
 import { getAuditData, getAuditHistoryById } from "@/lib/AuditService";
-import { getCoopById } from "@/lib/getCoopsService";
+import { getCoopByIdForAudit as getCoopById } from "@/lib/getCoopsService";
 import { AuditStatusColors, AuditStatusEnum } from "@/lib/AuditStatus";
 import FormReview from "@/components/FormReview/FormReview";
 import SubAuditStatusButtons from "@/components/ReviewAudit/SubAuditStatusButtons";

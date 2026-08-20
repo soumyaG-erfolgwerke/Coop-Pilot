@@ -288,6 +288,7 @@ const Sidebar = ({
   initIsVerified,
   isVerified,
   isCoopLive = false,
+  testBlankTabEnabled = false,
 }) => {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -456,6 +457,30 @@ const Sidebar = ({
             </li>
           </ul>
         </div>
+
+        {testBlankTabEnabled && (
+          <div className="mb-3">
+            <ul>
+              <li className="mb-1">
+                <button
+                  onClick={() => setActiveView("TestBlankTab")}
+                  className={`w-full flex items-center py-2.5 px-3 rounded-md transition-colors duration-150 ease-in-out ${
+                    activeView === "TestBlankTab"
+                      ? "bg-primary text-white shadow-md"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700"
+                  } ${!isSidebarOpen ? "justify-center" : ""}`}
+                  title="Test feature"
+                >
+                  <File
+                    size={isSidebarOpen ? 18 : 22}
+                    className={`${isSidebarOpen ? "mr-3" : ""} shrink-0`}
+                  />
+                  {isSidebarOpen && <span className="text-sm font-medium">Test feature</span>}
+                </button>
+              </li>
+            </ul>
+          </div>
+        )}
 
         {/* Onboarding Collapsible Dropdown */}
         <div className="mb-3">
@@ -1121,7 +1146,7 @@ const Sidebar = ({
   );
 };
 
-const MobileNav = ({ activeView, setActiveView, isCoopLive = false }) => {
+const MobileNav = ({ activeView, setActiveView, isCoopLive = false, testBlankTabEnabled = false }) => {
   const { t } = useLanguage();
   const proposalItem = {
     name: t("Proposals"),
@@ -1141,6 +1166,7 @@ const MobileNav = ({ activeView, setActiveView, isCoopLive = false }) => {
             ...governanceItems,
             ...financeItems,
             ...bottomNavItems,
+            ...(testBlankTabEnabled ? [{ name: "Test feature", icon: File, view: "TestBlankTab" }] : []),
           ].map((item) => {
             const isDisabled = item.view === "Filing" && !isCoopLive;
             return (
@@ -1820,6 +1846,7 @@ export default function AdminPage() {
   const [isVerified, setIsVerified] = useState(user?.isVerified || false);
   const [assemblyHistory, setAssemblyHistory] = useState([]);
   const [editingAssembly, setEditingAssembly] = useState(null);
+  const [testBlankTabEnabled, setTestBlankTabEnabled] = useState(false);
 
   // Sync verification state when user data loads after login
   useEffect(() => {
@@ -1863,6 +1890,33 @@ export default function AdminPage() {
 
     loadAssemblies();
   }, [selectedCoop]);
+
+  useEffect(() => {
+    if (!selectedCoop) {
+      setTestBlankTabEnabled(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/features?coopId=${encodeURIComponent(selectedCoop)}`, { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((payload) => {
+        if (!cancelled) setTestBlankTabEnabled(payload?.features?.test_blank_tab === true);
+      })
+      .catch(() => {
+        if (!cancelled) setTestBlankTabEnabled(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCoop]);
+
+  useEffect(() => {
+    if (!testBlankTabEnabled && activeView === "TestBlankTab") {
+      setActiveView("Overview");
+    }
+  }, [activeView, setActiveView, testBlankTabEnabled]);
   const viewTitles = {
     Overview: "Overview",
     Noticeboard: "Notice Board",
@@ -1890,6 +1944,7 @@ export default function AdminPage() {
     Filing: "Filing",
     History: "History",
     Discrepancy: "Audit Discrepancies",
+    TestBlankTab: "Test feature",
   };
 
   const renderView = () => {
@@ -2035,6 +2090,8 @@ export default function AdminPage() {
         return <MemberOnboardingView {...props} />;
       case "Subscriptions":
         return <SubscriptionPage coopId={selectedCoop} {...props} />;
+      case "TestBlankTab":
+        return <div className="min-h-[calc(100vh-8rem)] bg-white dark:bg-slate-900" aria-label="Test feature blank page" />;
       default:
         return (
           <div className="p-6">
@@ -2071,6 +2128,7 @@ export default function AdminPage() {
           initIsVerified={initIsVerified}
           isVerified={isVerified}
           isCoopLive={isCoopLive}
+          testBlankTabEnabled={testBlankTabEnabled}
         />
       </div>
 
@@ -2111,6 +2169,7 @@ export default function AdminPage() {
           activeView={activeView}
           setActiveView={setActiveView}
           isCoopLive={isCoopLive}
+          testBlankTabEnabled={testBlankTabEnabled}
         />
 
         <div className="flex-1 overflow-y-auto">{renderView()}</div>

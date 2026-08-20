@@ -181,7 +181,14 @@ export async function ensureCoopAdminAccess(coopId) {
     return auth;
   }
 
-  const coop = await getCoopById(coopId);
+  let coop;
+  try {
+    coop = await getCoopById(coopId);
+  } catch (error) {
+    // Do not reveal whether a cooperative outside the caller's tenant exists.
+    if (error?.code === 404) throw new Error("FORBIDDEN");
+    throw error;
+  }
   const admins = Array.isArray(coop.admins) ? coop.admins : [];
   if (!admins.includes(auth.email)) {
     throw new Error("FORBIDDEN");

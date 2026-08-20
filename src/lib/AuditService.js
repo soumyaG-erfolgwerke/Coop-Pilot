@@ -218,7 +218,7 @@ export const setAuditStatusStart = async (formType, coopId, orgId) => {
     if (!data.success) {
       return {
         result: null,
-        message: "Failed to update audit status",
+        message: data.error || "Failed to update audit status",
         success: false,
       };
     }

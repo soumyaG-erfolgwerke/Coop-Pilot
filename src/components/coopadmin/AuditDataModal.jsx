@@ -18,6 +18,7 @@ import {
 import { generateAuditPDF } from "@/lib/auditPdfGenerator";
 import toast from "react-hot-toast";
 import FadePopUp from "../FadePopUp";
+import DocumentViewerModal from "../DocumentViewerModal";
 
 export default function AuditDataModal({
   open,
@@ -30,6 +31,7 @@ export default function AuditDataModal({
 }) {
   const [downloading, setDownloading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [viewerFile, setViewerFile] = useState(null);
 
   useEffect(() => {
     setMounted(true);
@@ -126,20 +128,19 @@ export default function AuditDataModal({
         return (
           <div className="flex flex-col gap-2">
             {files.map((f, i) => (
-              <a
+              <button
                 key={i}
-                href={f.url || f.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-3 p-2.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-all max-w-sm"
+                type="button"
+                onClick={() => setViewerFile(f)}
+                className="inline-flex items-center text-left gap-3 p-2.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-all max-w-sm group"
               >
-                <div className="flex items-center justify-center w-8 h-8 text-blue-600 rounded bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 shrink-0">
+                <div className="flex items-center justify-center w-8 h-8 text-blue-600 rounded bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 shrink-0 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
                   <Paperclip size={16} />
                 </div>
-                <span className="text-sm font-medium truncate text-gray-700 dark:text-gray-300">
+                <span className="text-sm font-medium truncate text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                   {f.fileName || "View Document"}
                 </span>
-              </a>
+              </button>
             ))}
           </div>
         );
@@ -338,6 +339,15 @@ export default function AuditDataModal({
           </button>
         </div>
       </div>
+      
+      {/* Document Viewer Modal */}
+      <DocumentViewerModal
+        isOpen={!!viewerFile}
+        onClose={() => setViewerFile(null)}
+        fileUrl={viewerFile?.url || viewerFile?.fileUrl}
+        fileName={viewerFile?.fileName}
+        fileType={viewerFile?.fileExtension}
+      />
     </FadePopUp>
   );
 

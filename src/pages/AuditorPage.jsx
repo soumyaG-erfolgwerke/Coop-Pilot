@@ -34,7 +34,6 @@ import FoundingAuditDashboard from "@/components/orgadmin/FoundingAudit/Dashboar
 const ORG_ADMIN_TAB_MAP = {
   overview: "Overview",
   coops: "Cooperatives",
-  form_builder: "FormBuilder",
   founding_audit: "FoundingAudit",
   audit: "Audit",
   my_audit: "MyAudit",
@@ -53,12 +52,6 @@ const SIDEBAR_TABS = [
     icon: LayoutDashboard,
   },
   { id: "coops", view: "Cooperatives", label: "Portfolio", icon: Building2 },
-  {
-    id: "form_builder",
-    view: "FormBuilder",
-    label: "Form Builder",
-    icon: FileText,
-  },
   {
     id: "founding_audit",
     view: "FoundingAudit",
@@ -263,8 +256,6 @@ function AuditorPage() {
         );
       case "Cooperatives":
         return <Cooperatives auditOrg={auditOrg} />;
-      case "FormBuilder":
-        return <div className="min-h-[70vh]">Form Builder coming soon...</div>;
       case "FoundingAudit":
         return (
           <div className="min-h-[70vh]"><FoundingAuditDashboard auditOrg={auditOrg} /></div>

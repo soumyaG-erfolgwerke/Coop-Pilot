@@ -48,6 +48,7 @@ import {
   Quote,
   Link,
   Image,
+  Database,
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -57,6 +58,7 @@ import { getAuditHistoryById } from "@/lib/AuditService";
 import { useAuth } from "@/hooks/useAuth";
 import { DEFAULT_TEMPLATE } from "@/assets/data/javascript/Report_Template";
 import { fetchAuditorAuditOrg } from "@/lib/auditorService";
+import AuditDataModal from "@/components/coopadmin/AuditDataModal";
 
 const highlightText = (text) => {
   if (!text) return "";
@@ -136,7 +138,7 @@ const generateCoverPageHtml = (macros, auditOrg) => {
 
   return `
     <div class="flex-1 flex flex-col justify-center text-center my-auto h-full w-full font-sans p-16" style="display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; text-align: center !important; height: 100% !important; width: 100% !important; font-family: 'Outfit', 'Inter', sans-serif !important; padding: 40px !important; box-sizing: border-box !important;">
-      <img src="${auditOrg?.logo_url || ""}" alt="Logo" style="width: 140px !important; height: 140px !important; margin: 10px auto !important; display: block !important;" />
+      ${auditOrg?.logo_url ? `<img src="${auditOrg.logo_url}" alt="Logo" style="width: 140px !important; height: 140px !important; margin: 10px auto !important; display: block !important;" />` : ''}
       <h1 class="text-4xl font-extrabold text-blue-800 tracking-wider mb-2 text-center" style="font-size: 3.2rem !important; line-height: 1 !important; color: #0033a0 !important; font-weight: 800 !important; letter-spacing: 0.05em !important; margin-bottom: 8px !important; text-align: center !important;">
         PRÜFUNGSBERICHT
       </h1>
@@ -341,6 +343,7 @@ export default function ReportPage() {
   const [auditOrg, setAuditOrg] = useState(null);
   const [showBorder, setShowBorder] = useState(false);
   const [openFrontPageModal, setOpenFrontPageModal] = useState(false);
+  const [showAuditDataModal, setShowAuditDataModal] = useState(false);
 
   // Front page modal form states
   const [modalCoopName, setModalCoopName] = useState("");
@@ -2840,6 +2843,15 @@ export default function ReportPage() {
             }`}
           >
             <div className="flex flex-wrap items-center gap-2">
+              {/* View Audit Data Modal Trigger */}
+              <button
+                onClick={() => setShowAuditDataModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-md transition-all active:scale-95 shadow-sm"
+              >
+                <Database size={13} />
+                View Form Data
+              </button>
+              
               {/* Edit Front Page Modal Trigger */}
               <button
                 onClick={() => setOpenFrontPageModal(true)}
@@ -3769,6 +3781,18 @@ export default function ReportPage() {
         }}
       />
 
+      {/* View Submitted Data Modal */}
+      {showAuditDataModal && (
+        <AuditDataModal
+          open={showAuditDataModal}
+          onClose={() => setShowAuditDataModal(false)}
+          coop={cooperative}
+          tickets={[]}
+          comments={[]}
+          auditData={auditDoc?.auditJson}
+        />
+      )}
+      
       {/* Edit Front Page Modal */}
       {openFrontPageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto text-gray-800 bg-black/60 backdrop-blur-sm dark:text-gray-200">

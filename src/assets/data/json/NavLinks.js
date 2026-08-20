@@ -21,13 +21,13 @@ export const NavLinks = [
     toggle: false,
     // data: data,
   },
-  {
+  /*{
     title: "pricing",
     href: "/pricing",
     tag: "pricing",
     toggle: false,
     // data: data,
-  },
+  },*/
   {
     title: "about",
     tag: "about",

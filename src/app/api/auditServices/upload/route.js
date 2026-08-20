@@ -12,18 +12,17 @@ const MAX_AUDIT_UPLOAD_BYTES = 15 * 1024 * 1024;
 // POST /api/auditServices/upload - Upload audit file
 export async function POST(request) {
   try {
-    requireRole(await resolveSession(), ["superuser", "superadmin", "org_admin", "auditer", "aud_E"]);
+    requireRole(await resolveSession(), ["superuser", "superadmin", "org_admin", "auditer", "aud_E", "coopadmin"]);
     const formData = await request.formData();
     const file = formData.get("file");
 
     if (
       !file ||
-      file.type !== "application/pdf" ||
       file.size < 1 ||
       file.size > MAX_AUDIT_UPLOAD_BYTES
     ) {
       return NextResponse.json(
-        { success: false, error: "A PDF no larger than 15 MB is required" },
+        { success: false, error: "A file no larger than 15 MB is required" },
         { status: 400 }
       );
     }
@@ -35,24 +34,36 @@ export async function POST(request) {
     const buffer = Buffer.from(bytes);
     if (!hasExpectedFileSignature(buffer, file.type)) {
       return NextResponse.json(
-        { success: false, error: "File content does not match a PDF" },
+        { success: false, error: "File content does not match its claimed type" },
         { status: 400 },
       );
     }
     await assertMalwareFree(buffer);
 
-    // Create InputFile from buffer
-    const inputFile = InputFile.fromBuffer(buffer, file.name);
+    // Use native File object instead of InputFile to avoid instanceof check
+    // failure caused by Next.js bundling duplicating the InputFile class.
+    // The node-appwrite SDK's chunkedUpload accepts both InputFile and
+    // native File (undici.File), so this is fully compatible.
+    const nativeFile = new File([buffer], file.name, { type: file.type });
 
     // Upload the file to Appwrite Storage
     const uploadedFile = await storage.createFile(
       AUDIT_BUCKET_ID,
       ID.unique(),
-      inputFile
+      nativeFile
     );
 
-    // Construct the public URL for the file
-    const fileUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
+    // Construct the public absolute URL for the file so Appwrite's URL validation doesn't fail
+    const relativeUrl = getSecureFileUrl(AUDIT_BUCKET_ID, uploadedFile.$id);
+    let baseUrl = request.headers.get("origin");
+    if (!baseUrl && request.headers.get("referer")) {
+      baseUrl = new URL(request.headers.get("referer")).origin;
+    }
+    if (!baseUrl || baseUrl.includes("0.0.0.0")) {
+      // Fallback if browser headers are somehow missing or proxy strips them
+      baseUrl = process.env.NODE_ENV === "production" ? "https://easy-coop.de" : "http://localhost:3000";
+    }
+    const fileUrl = `${baseUrl}${relativeUrl}`;
 
     return NextResponse.json({ 
       success: true, 
@@ -63,7 +74,7 @@ export async function POST(request) {
     if (error?.status === 401 || error?.status === 403) return sessionErrorResponse(error);
     console.error("Error uploading file:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to upload file" },
+      { success: false, error: "Failed to upload file: " + (error.message || error.toString()) },
       { status: 500 }
     );
   }

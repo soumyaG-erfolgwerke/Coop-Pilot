@@ -66,14 +66,14 @@ const CoopHero = () => {
 
         {/* Action Buttons (Original buttons kept) */}
         <div className="flex flex-col justify-center w-full gap-4 mt-2 sm:flex-row">
-          <Link href="/pricing" className="w-full sm:w-auto">
+          {/* <Link href="/pricing" className="w-full sm:w-auto">
             <ButtonFlippedRevealV2
               fullWidth="responsive"
               className="px-8 py-3.5 bg-black border-2 border-black text-white hover:bg-neutral-900 font-bold transition-all text-center rounded-xl flex items-center justify-center"
             >
               {language === "de" ? "Preise anzeigen" : "View Pricing"}
             </ButtonFlippedRevealV2>
-          </Link>
+          </Link> */}
           <Link
             href="https://cal.eu/hystandards/30min"
             className="w-full sm:w-auto"

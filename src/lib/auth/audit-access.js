@@ -62,8 +62,8 @@ export async function requireAuditStaff() {
 }
 
 export async function requireAuditEditor(coopId) {
-  const session = await requireCoopAuditAccess(coopId, { allowCoopAdmin: false });
-  if (!["superuser", "superadmin", "org_admin", "auditer", "aud_E"].includes(session.role)) {
+  const session = await requireCoopAuditAccess(coopId, { allowCoopAdmin: true });
+  if (!["superuser", "superadmin", "org_admin", "auditer", "aud_E", "coopadmin"].includes(session.role)) {
     throw new AuthorizationError();
   }
   return session;

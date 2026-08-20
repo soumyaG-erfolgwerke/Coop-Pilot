@@ -215,7 +215,7 @@ export default function AuditFormBuilderPage() {
       await saveFormState(updatedSchema, "Completed");
       toast.success("Form template submitted and published successfully.");
       // Redirect back to org dashboard
-      router.push(`/org/${orgId}`);
+      router.push(`/dashboard?tab=form_builder`);
     } catch (error) {
       console.error(error);
       toast.error(error.message || "Failed to publish form");

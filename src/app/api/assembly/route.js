@@ -224,7 +224,7 @@ export async function POST(request) {
       {
         coopId: body.coopId,
         title: normalizeText(body.title),
-        format: body.format,
+        format: body.format || "",
         startDateTime: toIsoOrEmpty(body.startDateTime),
         ...(body.format === "gestreckt"
           ? { endDateTime: toIsoOrEmpty(body.endDateTime) }
@@ -236,7 +236,7 @@ export async function POST(request) {
         quorumMet: false,
         noticePeriodValidation: Boolean(body.noticePeriodValidation),
         overrideReason: normalizeText(body.overrideReason),
-        invitationBody: body.invitationBody,
+        invitationBody: normalizeText(body.invitationBody),
         attachmentsJson: JSON.stringify(body.attachments || []),
         agendaItems: serializeArray(body.agendaItems),
         agendaCount: body.agendaItems.length,

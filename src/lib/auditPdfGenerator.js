@@ -25,7 +25,13 @@ const formatAnswerForPDF = (field) => {
     case "doc_upload":
     case "file_upload":
       const files = Array.isArray(field.answer) ? field.answer : [field.answer];
-      return files.map((f) => f.fileName || "Attached Document").join("\n");
+      return files
+        .map((f) => {
+          const name = f.fileName || "Attached Document";
+          const url = f.url || f.fileUrl;
+          return url ? `${name} (Click to view)` : name;
+        })
+        .join("\n");
 
     default:
       return String(field.answer);
@@ -141,6 +147,29 @@ export const generateAuditPDF = async (
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252], 
+        },
+        willDrawCell: function (data) {
+          if (data.column.index === 2 && data.cell.section === "body" && visibleFields[data.row.index]) {
+            const field = visibleFields[data.row.index];
+            if (["file", "doc_upload", "file_upload"].includes(field.componentType)) {
+              doc.setTextColor(37, 99, 235); // Blue color for links
+            }
+          }
+        },
+        didDrawCell: function (data) {
+          if (data.column.index === 2 && data.cell.section === "body" && visibleFields[data.row.index]) {
+            const field = visibleFields[data.row.index];
+            if (["file", "doc_upload", "file_upload"].includes(field.componentType)) {
+              const files = Array.isArray(field.answer) ? field.answer : [field.answer];
+              if (files.length > 0) {
+                const url = files[0].url || files[0].fileUrl;
+                if (url) {
+                  // Add a clickable link area over the entire cell
+                  doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url: url });
+                }
+              }
+            }
+          }
         },
         didDrawPage: function (data) {
           if (
