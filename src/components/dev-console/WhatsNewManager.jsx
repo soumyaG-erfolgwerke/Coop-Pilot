@@ -1,19 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Archive, Edit3, FileText, Megaphone, Send } from "lucide-react";
+import { Archive, Edit3, Eye, FileText, Megaphone, Plus, Send, X } from "lucide-react";
 
-const ROLE_OPTIONS = [
-  ["all", "All authenticated roles"],
-  ["coopadmin", "Cooperative administrators"],
-  ["member", "Members"],
-  ["org_admin", "Audit organisation administrators"],
-  ["auditer", "Lead auditors"],
-  ["aud_E", "Sub-auditors"],
-  ["superuser", "Superusers"],
-  ["superadmin", "Superadmins"],
-];
-const EMPTY_FORM = { title: "", message: "", type: "New", targetRoles: ["coopadmin"] };
+const ROLES = [["all","All authenticated roles"],["coopadmin","Cooperative administrators"],["member","Members"],["org_admin","Audit organisation administrators"],["auditer","Lead auditors"],["aud_E","Sub-auditors"],["superuser","Superusers"],["superadmin","Superadmins"]];
+const ROLE_NAMES = Object.fromEntries(ROLES);
+const EMPTY = { title: "", message: "", type: "New", targetRoles: ["coopadmin"] };
 
 async function request(path, options) {
   const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(options?.headers || {}) } });
@@ -22,65 +14,37 @@ async function request(path, options) {
   return payload;
 }
 
-export default function WhatsNewManager() {
-  const [items, setItems] = useState([]);
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [editingId, setEditingId] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+function Modal({ title, onClose, children, width = "max-w-2xl" }) {
+  return <div className="fixed inset-0 z-[80] flex items-center justify-center p-4"><button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm"/><section role="dialog" aria-modal="true" aria-label={title} className={`relative max-h-[90vh] w-full ${width} overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl`}><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{title}</h2><button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close"><X size={19}/></button></div>{children}</section></div>;
+}
 
-  const load = useCallback(async () => {
-    try {
-      const payload = await request("/api/dev-console/whats-new");
-      setItems(payload.announcements || []);
-    } catch (caught) { setError(caught.message); }
-  }, []);
+function Preview({ item, onClose }) {
+  return <Modal title="Notification preview" onClose={onClose} width="max-w-md"><p className="mb-4 text-sm text-slate-400">This is how it will appear below the application bell.</p><div className="overflow-hidden rounded-2xl border border-slate-700 bg-white text-slate-900 shadow-2xl"><div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4"><span className="rounded-xl bg-rose-50 p-2 text-rose-600"><Megaphone size={20}/></span><div><h3 className="font-bold">What&apos;s new</h3><p className="text-xs text-slate-500">Recent CoopPilot announcements</p></div></div><div className="p-4"><article className="rounded-xl border border-slate-200 p-4 shadow-sm"><div className="flex justify-between"><span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700">{item.type}</span><span className="text-xs text-slate-400">Today</span></div><h4 className="mt-4 font-bold">{item.title || "Announcement title"}</h4><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{item.message || "Announcement message"}</p></article></div></div></Modal>;
+}
+
+function Badge({ status }) {
+  const colors = status === "Published" ? "bg-emerald-950 text-emerald-300" : status === "Archived" ? "bg-slate-800 text-slate-300" : "bg-amber-950 text-amber-300";
+  return <span className={`rounded-full px-2.5 py-1 text-xs ${colors}`}>{status}</span>;
+}
+
+export default function WhatsNewManager() {
+  const [items, setItems] = useState([]), [form, setForm] = useState(EMPTY);
+  const [editing, setEditing] = useState(null), [formOpen, setFormOpen] = useState(false), [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const load = useCallback(async () => { try { const data = await request("/api/dev-console/whats-new"); setItems(data.announcements || []); } catch (e) { setError(e.message); } }, []);
   useEffect(() => { load(); }, [load]);
 
-  function toggleRole(role) {
-    setForm((current) => {
-      if (role === "all") return { ...current, targetRoles: ["all"] };
-      const withoutAll = current.targetRoles.filter((item) => item !== "all");
-      const targetRoles = withoutAll.includes(role) ? withoutAll.filter((item) => item !== role) : [...withoutAll, role];
-      return { ...current, targetRoles };
-    });
-  }
+  const close = () => { setFormOpen(false); setEditing(null); setForm(EMPTY); setError(""); };
+  const add = () => { setEditing(null); setForm(EMPTY); setError(""); setFormOpen(true); };
+  const edit = (item) => { setEditing(item); setForm({ title:item.title, message:item.message, type:item.type, targetRoles:item.targetRoles }); setError(""); setFormOpen(true); };
+  const toggleRole = (role) => setForm((current) => { if (role === "all") return {...current,targetRoles:["all"]}; const list=current.targetRoles.filter((r)=>r!=="all"); return {...current,targetRoles:list.includes(role)?list.filter((r)=>r!==role):[...list,role]}; });
+  async function save(status) { setBusy(true); setError(""); try { const finalStatus=status||editing?.status||"Draft"; const path=editing?`/api/dev-console/whats-new/${editing._id}`:"/api/dev-console/whats-new"; await request(path,{method:editing?"PATCH":"POST",body:JSON.stringify({...form,status:finalStatus})}); close(); await load(); } catch(e){setError(e.message);} finally{setBusy(false);} }
+  async function setStatus(item,status){setBusy(true);setError("");try{await request(`/api/dev-console/whats-new/${item._id}`,{method:"PATCH",body:JSON.stringify({status})});await load();}catch(e){setError(e.message);}finally{setBusy(false);}}
+  const valid=form.title.trim()&&form.message.trim()&&form.targetRoles.length;
 
-  async function save(status) {
-    setBusy(true); setError("");
-    try {
-      const body = { ...form, status };
-      if (editingId) await request(`/api/dev-console/whats-new/${editingId}`, { method: "PATCH", body: JSON.stringify(body) });
-      else await request("/api/dev-console/whats-new", { method: "POST", body: JSON.stringify(body) });
-      setForm(EMPTY_FORM); setEditingId(null); await load();
-    } catch (caught) { setError(caught.message); }
-    finally { setBusy(false); }
-  }
-
-  function edit(item) {
-    setEditingId(item._id);
-    setForm({ title: item.title, message: item.message, type: item.type, targetRoles: item.targetRoles });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function changeStatus(item, status) {
-    setBusy(true); setError("");
-    try { await request(`/api/dev-console/whats-new/${item._id}`, { method: "PATCH", body: JSON.stringify({ status }) }); await load(); }
-    catch (caught) { setError(caught.message); }
-    finally { setBusy(false); }
-  }
-
-  const valid = form.title.trim() && form.message.trim() && form.targetRoles.length;
-  return <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-      <div className="flex items-center gap-3"><span className="rounded-lg bg-cyan-950 p-2 text-cyan-300"><Megaphone size={20}/></span><div><h2 className="font-semibold">{editingId ? "Edit announcement" : "New announcement"}</h2><p className="text-sm text-slate-400">Publish to the separate bell in the application header.</p></div></div>
-      {error && <p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-sm text-rose-300">{error}</p>}
-      <label className="mt-5 block text-sm text-slate-300">Title<input maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 caret-cyan-400 placeholder:text-slate-600 outline-none focus:border-cyan-500" /></label>
-      <label className="mt-4 block text-sm text-slate-300">Type<select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 [color-scheme:dark]"><option>New</option><option>Improvement</option><option>Fixed</option><option>Important</option></select></label>
-      <label className="mt-4 block text-sm text-slate-300">Message<textarea maxLength={2000} rows={7} value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} className="mt-2 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 caret-cyan-400 placeholder:text-slate-600 leading-6 outline-none focus:border-cyan-500" /><span className="mt-1 block text-right text-xs text-slate-500">{form.message.length}/2000</span></label>
-      <fieldset className="mt-4"><legend className="text-sm text-slate-300">Show to roles</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{ROLE_OPTIONS.map(([value, label]) => <label key={value} className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-300"><input type="checkbox" checked={form.targetRoles.includes(value)} onChange={() => toggleRole(value)} className="h-4 w-4 accent-cyan-500" />{label}</label>)}</div></fieldset>
-      <div className="mt-5 flex flex-wrap gap-3"><button disabled={!valid || busy} onClick={() => save("Draft")} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-medium disabled:opacity-40"><FileText size={16}/>Save draft</button><button disabled={!valid || busy} onClick={() => save("Published")} className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-40"><Send size={16}/>{editingId ? "Save and publish" : "Publish now"}</button>{editingId && <button onClick={() => { setEditingId(null); setForm(EMPTY_FORM); }} className="px-3 py-2 text-sm text-slate-400">Cancel</button>}</div>
-    </div>
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-6"><h2 className="font-semibold">Announcement history</h2><p className="mt-1 text-sm text-slate-400">Published items stay in history; archive instead of deleting.</p><div className="mt-5 space-y-3">{items.map((item) => <article key={item._id} className="rounded-xl border border-slate-800 bg-slate-950/60 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex gap-2"><span className="rounded-full bg-slate-800 px-2.5 py-1 text-xs">{item.type}</span><span className={`rounded-full px-2.5 py-1 text-xs ${item.status === "Published" ? "bg-emerald-950 text-emerald-300" : item.status === "Archived" ? "bg-slate-800 text-slate-400" : "bg-amber-950 text-amber-300"}`}>{item.status}</span></div><span className="text-xs text-slate-500">{new Date(item.publishedAt || item.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</span></div><h3 className="mt-3 font-semibold">{item.title}</h3><p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-400">{item.message}</p><p className="mt-3 text-xs text-slate-500">Roles: {item.targetRoles.join(", ")}</p><div className="mt-3 flex flex-wrap gap-2"><button disabled={busy} onClick={() => edit(item)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs"><Edit3 size={14}/>Edit</button>{item.status !== "Published" && <button disabled={busy} onClick={() => changeStatus(item, "Published")} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs"><Send size={14}/>Publish</button>}{item.status === "Published" && <button disabled={busy} onClick={() => changeStatus(item, "Archived")} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs"><Archive size={14}/>Archive</button>}</div></article>)}{!items.length && <p className="py-12 text-center text-sm text-slate-500">No bell announcements yet.</p>}</div></div>
-  </section>;
+  return <section className="mt-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">What&apos;s new announcements</h2><p className="mt-1 text-sm text-slate-400">Create, preview and publish updates to the application bell.</p></div><button onClick={add} className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 font-semibold text-slate-950"><Plus size={18}/>New announcement</button></div>
+    {error&&!formOpen&&<p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-sm text-rose-300">{error}</p>}
+    <div className="mt-5 overflow-x-auto rounded-xl border border-slate-800 bg-slate-900"><table className="w-full min-w-[900px] text-left text-sm"><thead className="text-slate-400"><tr><th className="px-5 py-4">Title</th><th className="px-5 py-4">Type</th><th className="px-5 py-4">Roles</th><th className="px-5 py-4">Date</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-800">{items.map((item)=><tr key={item._id}><td className="max-w-xs px-5 py-4 font-medium">{item.title}</td><td className="px-5 py-4 text-slate-300">{item.type}</td><td className="max-w-xs px-5 py-4 text-slate-400">{item.targetRoles.map((r)=>ROLE_NAMES[r]||r).join(", ")}</td><td className="whitespace-nowrap px-5 py-4 text-slate-400">{new Date(item.publishedAt||item.createdAt).toLocaleDateString("en-IN",{timeZone:"Asia/Kolkata"})}</td><td className="px-5 py-4"><Badge status={item.status}/></td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button disabled={busy} onClick={()=>edit(item)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs"><Edit3 size={14}/>Edit</button><button disabled={busy} onClick={()=>setPreview(item)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs"><Eye size={14}/>Preview</button>{item.status==="Published"?<button disabled={busy} onClick={()=>setStatus(item,"Archived")} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs"><Archive size={14}/>Archive</button>:<button disabled={busy} onClick={()=>setStatus(item,"Published")} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-2 text-xs"><Send size={14}/>{item.status==="Archived"?"Republish":"Publish"}</button>}</div></td></tr>)}{!items.length&&<tr><td colSpan="6" className="px-5 py-16 text-center text-slate-500">No bell announcements yet.</td></tr>}</tbody></table></div>
+    {formOpen&&<Modal title={editing?"Edit announcement":"New announcement"} onClose={close}>{error&&<p className="mt-4 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-sm text-rose-300">{error}</p>}<label className="mt-5 block text-sm text-slate-300">Title<input maxLength={120} value={form.title} onChange={(e)=>setForm({...form,title:e.target.value})} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 caret-cyan-400 outline-none"/></label><label className="mt-4 block text-sm text-slate-300">Type<select value={form.type} onChange={(e)=>setForm({...form,type:e.target.value})} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 [color-scheme:dark]"><option>New</option><option>Improvement</option><option>Fixed</option><option>Important</option></select></label><label className="mt-4 block text-sm text-slate-300">Message<textarea maxLength={2000} rows={6} value={form.message} onChange={(e)=>setForm({...form,message:e.target.value})} className="mt-2 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 caret-cyan-400 leading-6 outline-none"/><span className="mt-1 block text-right text-xs text-slate-500">{form.message.length}/2000</span></label><fieldset className="mt-4"><legend className="text-sm text-slate-300">Show to roles</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{ROLES.map(([value,label])=><label key={value} className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-300"><input type="checkbox" checked={form.targetRoles.includes(value)} onChange={()=>toggleRole(value)} className="h-4 w-4 accent-cyan-500"/>{label}</label>)}</div></fieldset><div className="mt-5 flex flex-wrap justify-end gap-3"><button onClick={()=>setPreview(form)} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2.5 text-sm"><Eye size={16}/>Preview</button>{editing?<button disabled={!valid||busy} onClick={()=>save()} className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-40"><Edit3 size={16}/>Save changes</button>:<><button disabled={!valid||busy} onClick={()=>save("Draft")} className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2.5 text-sm disabled:opacity-40"><FileText size={16}/>Save draft</button><button disabled={!valid||busy} onClick={()=>save("Published")} className="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-40"><Send size={16}/>Publish</button></>}</div></Modal>}
+    {preview&&<Preview item={preview} onClose={()=>setPreview(null)}/>}</section>;
 }

@@ -45,10 +45,10 @@ export default function WhatsNewBell() {
   if (!user || !enabled) return null;
 
   return (
-    <>
+    <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen((current) => !current)}
         className="relative rounded-full p-2 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
         title="What's new announcements"
         aria-label={unreadCount ? `What's new: ${unreadCount} unread` : "What's new"}
@@ -79,6 +79,6 @@ export default function WhatsNewBell() {
           .animate-whats-new-shake { animation: none; }
         }
       `}</style>
-    </>
+    </div>
   );
 }
