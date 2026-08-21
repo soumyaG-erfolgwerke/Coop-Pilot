@@ -895,10 +895,10 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
       return;
     }
 
-    if (isDeployment && (!captchaToken || captchaToken.trim() === "")) {
-      setError(language === "de" ? "Bitte lösen Sie das CAPTCHA." : "Please complete the CAPTCHA.");
-      return;
-    }
+    // if (isDeployment && (!captchaToken || captchaToken.trim() === "")) {
+    //   setError(language === "de" ? "Bitte lösen Sie das CAPTCHA." : "Please complete the CAPTCHA.");
+    //   return;
+    // }
     onSubmit({ email, password, captchaToken, onFail: () => setCaptchaToken("") });
   };
 
@@ -980,21 +980,9 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
             </button>
           </div>
 
-          {isDeployment && (
+          {/* 
+          isDeployment && (
             <>
-              {/* TrustCaptcha temporarily disabled.
-                  Google reCAPTCHA is currently the active provider.
-                  Existing implementation retained for future use.
-              <TrustcaptchaComponent
-                sitekey={process.env.NEXT_PUBLIC_TRUST_CAPTCHA_SITE_KEY}
-                onCaptchaSolved={(event) => {
-                  setCaptchaToken(event.detail);
-                }}
-                onCaptchaFailed={() => {
-                  setCaptchaToken("");
-                }}
-              />
-              */}
               <TrustcaptchaComponent
                 captchaToken={captchaToken}
                 onCaptchaSolved={(event) => {
@@ -1005,7 +993,8 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
                 }}
               />
             </>
-          )}
+          )
+          */}
           <button
             type="submit"
             className="flex items-center justify-center w-full px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700"

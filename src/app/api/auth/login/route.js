@@ -28,20 +28,20 @@ export async function POST(request) {
       );
     }
 
-    if (!trustedDemoMonitor && !captchaToken && process.env.NODE_ENV === "production") {
-      return NextResponse.json(
-        { error: "Captcha token is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!trustedDemoMonitor && process.env.NODE_ENV === "production") {
-      const ok = await verifyCaptcha(captchaToken);
-      console.log("Captcha verification result:", ok);
-      if (!ok) {
-        return NextResponse.json({ error: "Captcha failed" }, { status: 400 });
-      }
-    }
+    // if (!trustedDemoMonitor && !captchaToken && process.env.NODE_ENV === "production") {
+    //   return NextResponse.json(
+    //     { error: "Captcha token is required" },
+    //     { status: 400 },
+    //   );
+    // }
+    // 
+    // if (!trustedDemoMonitor && process.env.NODE_ENV === "production") {
+    //   const ok = await verifyCaptcha(captchaToken);
+    //   console.log("Captcha verification result:", ok);
+    //   if (!ok) {
+    //     return NextResponse.json({ error: "Captcha failed" }, { status: 400 });
+    //   }
+    // }
     // Create session via raw HTTP call (not the SDK)
     // The node-appwrite server SDK sends x-sdk-platform: server header
     // which causes Appwrite to strip session.secret from responses
