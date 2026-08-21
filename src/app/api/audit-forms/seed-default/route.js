@@ -86,33 +86,33 @@ export async function POST(req) {
           ]
         },
         // PHASE 4: Document Checklist
-        {
-          phaseId: uniqueId(),
-          title: "4. Document Checklist",
-          description: "Please upload the required documents for the audit.",
-          fields: [
-            { fieldId: uniqueId(), componentType: "file", label: "Erklärung zur Prüfung- und Vollständigkeit (1.0)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Satzung (1.1)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Gewerbeanmeldung (1.2)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Registerauszug (1.3)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Immobilien und Unternehmensbeteiligungen (1.4)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Mitgliederdarlehen (1.5)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Erklärung zur Führung der Bücher (2.0)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Jahresabschlüsse (2.1)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Summen- & Saldenlisten (2.2)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Sachkonten (2.3)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Steuerbescheide (2.4)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Offenlegung der Jahresabschlüsse (2.5)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Aktuelle BWA (2.6)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Erklärung zur Führung der Mitgliederliste (3.0)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Aktuelle Mitgliederliste (3.1)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Mitgliederliste zum Jahresende (3.2)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Erklärung zu Organen, Geschäftsordnung und GV (4.0)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Geschäftsordnung GV, Vorstand und Aufsichtsrat (4.1)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Protokolle von Vorstands- und Aufsichtsratssitzungen (4.2)", required: false },
-            { fieldId: uniqueId(), componentType: "file", label: "Protokolle der Generalversammlungen (4.3)", required: false }
-          ]
-        }
+        // {
+        //   phaseId: uniqueId(),
+        //   title: "4. Document Checklist",
+        //   description: "Please upload the required documents for the audit.",
+        //   fields: [
+        //     { fieldId: uniqueId(), componentType: "file", label: "Erklärung zur Prüfung- und Vollständigkeit (1.0)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Satzung (1.1)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Gewerbeanmeldung (1.2)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Registerauszug (1.3)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Immobilien und Unternehmensbeteiligungen (1.4)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Mitgliederdarlehen (1.5)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Erklärung zur Führung der Bücher (2.0)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Jahresabschlüsse (2.1)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Summen- & Saldenlisten (2.2)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Sachkonten (2.3)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Steuerbescheide (2.4)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Offenlegung der Jahresabschlüsse (2.5)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Aktuelle BWA (2.6)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Erklärung zur Führung der Mitgliederliste (3.0)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Aktuelle Mitgliederliste (3.1)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Mitgliederliste zum Jahresende (3.2)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Erklärung zu Organen, Geschäftsordnung und GV (4.0)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Geschäftsordnung GV, Vorstand und Aufsichtsrat (4.1)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Protokolle von Vorstands- und Aufsichtsratssitzungen (4.2)", required: false },
+        //     { fieldId: uniqueId(), componentType: "file", label: "Protokolle der Generalversammlungen (4.3)", required: false }
+        //   ]
+        // }
       ]
     };
 
