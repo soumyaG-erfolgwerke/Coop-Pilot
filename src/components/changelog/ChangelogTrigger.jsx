@@ -26,9 +26,8 @@ export default function ChangelogTrigger() {
       const allLogs = await fetchChangelog();
       const filtered = filterChangelogsByRole(allLogs, userRole);
       setRoleLogs(filtered);
-      if (hasUnreadChangelog(filtered, userRole)) {
-        setUnread(true);
-      }
+      const isUnread = hasUnreadChangelog(filtered, userRole);
+      setUnread(isUnread);
     }
     loadChangelog();
   }, [userRole]);
