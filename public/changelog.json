@@ -1,0 +1,80 @@
+[
+  {
+    "id": "rel-2026-08-20",
+    "version": "v1.4.0",
+    "date": "2026-08-20",
+    "type": "feature",
+    "title": {
+      "en": "In-Browser Document Viewer & Clickable Audit PDFs",
+      "de": "Dokumentbetrachter im Browser & Klickbare Audit-PDFs"
+    },
+    "summary": {
+      "en": "You can now preview audit evidence documents directly inside your browser and export report PDFs with clickable file links.",
+      "de": "Sie können Prüfungsdokumente jetzt direkt im Browser ansehen und Berichts-PDFs mit klickbaren Dateilinks exportieren."
+    },
+    "items": {
+      "en": [
+        "Added in-browser DocumentViewerModal for PDF and image evidence previews.",
+        "Generated audit report PDFs now include clickable links to evidence files.",
+        "Optimized document loading speeds across cooperative audit logs."
+      ],
+      "de": [
+        "In-Browser-Dokumentbetrachter für PDF- und Bildnachweise hinzugefügt.",
+        "Generierte Prüfberichts-PDFs enthalten jetzt klickbare Links zu Nachweisdateien.",
+        "Dokumentenladezeiten in allen Genossenschaftsprüfprotokollen optimiert."
+      ]
+    }
+  },
+  {
+    "id": "rel-2026-08-18",
+    "version": "v1.3.2",
+    "date": "2026-08-18",
+    "type": "fix",
+    "title": {
+      "en": "Dashboard Performance & Stability Hardening",
+      "de": "Dashboard-Leistungs- und Stabilitätsverbesserungen"
+    },
+    "summary": {
+      "en": "Resolved login navigation loops and eliminated scrolling freezes during member list lookup.",
+      "de": "Anmeldenavigationsschleifen behoben und Scroll-Einfrieren bei der Mitgliedersuche eliminiert."
+    },
+    "items": {
+      "en": [
+        "Fixed dashboard tab render lock issue upon login.",
+        "In-memory user caching updated to prevent UI thread lockups during rapid scrolling.",
+        "Relaxed realtime notification background polling interval."
+      ],
+      "de": [
+        "Problem mit der Render-Sperre der Dashboard-Registerkarte nach der Anmeldung behoben.",
+        "In-Memory-Benutzer-Caching aktualisiert, um UI-Einfrieren bei schnellem Scrollen zu verhindern.",
+        "Hintergrundabfrageintervall für Echtzeitbenachrichtigungen angepasst."
+      ]
+    }
+  },
+  {
+    "id": "rel-2026-08-15",
+    "version": "v1.3.0",
+    "date": "2026-08-15",
+    "type": "improvement",
+    "title": {
+      "en": "Enhanced Member Export & Quorum Tracking",
+      "de": "Erweiterter Mitgliederexport & Quorum-Tracking"
+    },
+    "summary": {
+      "en": "Streamlined member list exports to Excel and improved voting quorum calculation accuracy.",
+      "de": "Mitgliederlistenexporte nach Excel vereinfacht und Genauigkeit der Abstimmungsquorum-Berechnung verbessert."
+    },
+    "items": {
+      "en": [
+        "Added instant Excel export support for member lists.",
+        "Fixed: Proxy submissions were sometimes not counted in assembly quorum calculation.",
+        "Updated audit log trail for governance compliance."
+      ],
+      "de": [
+        "Sofortige Excel-Exportunterstützung für Mitgliederlisten hinzugefügt.",
+        "Behoben: Vollmachtseinreichungen wurden manchmal nicht im Quorum der Versammlung gezählt.",
+        "Prüfprotokoll für Governance-Compliance aktualisiert."
+      ]
+    }
+  }
+]
