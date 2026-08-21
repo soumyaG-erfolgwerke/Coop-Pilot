@@ -1,0 +1,135 @@
+[
+  {
+    "id": "rel-2026-08-20",
+    "version": "v1.4.0",
+    "date": "2026-08-20",
+    "type": "feature",
+    "roles": ["auditer", "aud_E", "coopadmin"],
+    "title": {
+      "en": "In-Browser Document Viewer & Clickable Audit PDFs",
+      "de": "Dokumentbetrachter im Browser & Klickbare Audit-PDFs"
+    },
+    "summary": {
+      "en": "Auditors and Coop Admins can now preview evidence documents directly inside the browser and export report PDFs with clickable file links.",
+      "de": "Prüfer und Genossenschafts-Admins können Nachweisdokumente jetzt direkt im Browser ansehen und Berichts-PDFs mit klickbaren Links exportieren."
+    },
+    "items": {
+      "en": [
+        "Added in-browser DocumentViewerModal for PDF and image evidence previews.",
+        "Generated audit report PDFs now include clickable links to evidence files.",
+        "Optimized document loading speeds across cooperative audit logs."
+      ],
+      "de": [
+        "In-Browser-Dokumentbetrachter für PDF- und Bildnachweise hinzugefügt.",
+        "Generierte Prüfberichts-PDFs enthalten jetzt klickbare Links zu Nachweisdateien.",
+        "Dokumentenladezeiten in allen Genossenschaftsprüfprotokollen optimiert."
+      ]
+    }
+  },
+  {
+    "id": "rel-2026-08-18",
+    "version": "v1.3.2",
+    "date": "2026-08-18",
+    "type": "fix",
+    "roles": ["all"],
+    "title": {
+      "en": "Dashboard Performance & Stability Hardening",
+      "de": "Dashboard-Leistungs- und Stabilitätsverbesserungen"
+    },
+    "summary": {
+      "en": "Resolved login navigation loops and eliminated scrolling freezes across all dashboard portals.",
+      "de": "Anmeldenavigationsschleifen behoben und Scroll-Einfrieren in allen Dashboard-Portalen eliminiert."
+    },
+    "items": {
+      "en": [
+        "Fixed dashboard tab render lock issue upon login.",
+        "In-memory user caching updated to prevent UI thread lockups during rapid scrolling.",
+        "Relaxed realtime notification background polling interval."
+      ],
+      "de": [
+        "Problem mit der Render-Sperre der Dashboard-Registerkarte nach der Anmeldung behoben.",
+        "In-Memory-Benutzer-Caching aktualisiert, um UI-Einfrieren bei schnellem Scrollen zu verhindern.",
+        "Hintergrundabfrageintervall für Echtzeitbenachrichtigungen angepasst."
+      ]
+    }
+  },
+  {
+    "id": "rel-2026-08-16",
+    "version": "v1.3.1",
+    "date": "2026-08-16",
+    "type": "feature",
+    "roles": ["member"],
+    "title": {
+      "en": "Digital Voting & Share Dividend Tracking",
+      "de": "Digitales Abstimmen & Anteils-Dividendenübersicht"
+    },
+    "summary": {
+      "en": "Members can now track their share certificates, view dividend calculations, and cast digital votes during assemblies.",
+      "de": "Mitglieder können jetzt ihre Geschäftsanteile verfolgen, Dividendendetails einsehen und digital abstimmen."
+    },
+    "items": {
+      "en": [
+        "Realtime share certificate portfolio on member dashboard.",
+        "Digital voting ballot integration for general assemblies.",
+        "Direct member registration and quick sign-in flow."
+      ],
+      "de": [
+        "Echtzeit-Geschäftsanteilsportfolio auf dem Mitglieder-Dashboard.",
+        "Digitale Stimmzettel-Integration für Generalversammlungen.",
+        "Direkte Mitgliederregistrierung und schneller Anmeldeflow."
+      ]
+    }
+  },
+  {
+    "id": "rel-2026-08-15",
+    "version": "v1.3.0",
+    "date": "2026-08-15",
+    "type": "improvement",
+    "roles": ["coopadmin"],
+    "title": {
+      "en": "Instant Excel Member Export & Quorum Calculation",
+      "de": "Sofortiger Excel-Mitgliederexport & Quorum-Berechnung"
+    },
+    "summary": {
+      "en": "Streamlined member list exports to Excel and improved voting quorum calculation accuracy for assembly management.",
+      "de": "Mitgliederlistenexporte nach Excel vereinfacht und Genauigkeit der Quorum-Berechnung verbessert."
+    },
+    "items": {
+      "en": [
+        "Added instant Excel export support for member lists.",
+        "Fixed: Proxy submissions were sometimes not counted in assembly quorum calculation.",
+        "Updated audit log trail for governance compliance."
+      ],
+      "de": [
+        "Sofortige Excel-Exportunterstützung für Mitgliederlisten hinzugefügt.",
+        "Behoben: Vollmachtseinreichungen wurden manchmal nicht im Quorum der Versammlung gezählt.",
+        "Prüfprotokoll für Governance-Compliance aktualisiert."
+      ]
+    }
+  },
+  {
+    "id": "rel-2026-08-12",
+    "version": "v1.2.5",
+    "date": "2026-08-12",
+    "type": "feature",
+    "roles": ["orgadmin"],
+    "title": {
+      "en": "Audit Organization Dashboard & Auditor Allocation",
+      "de": "Prüfungsverband-Dashboard & Prüfer-Zuweisung"
+    },
+    "summary": {
+      "en": "Org Admins can now allocate lead auditors and sub-auditors to cooperatives with automated notification dispatch.",
+      "de": "Verbands-Admins können Hauptprüfer und Unterprüfer mit automatischer Benachrichtigung zuweisen."
+    },
+    "items": {
+      "en": [
+        "Multi-auditor assignment workflow for cooperative audit mandates.",
+        "Audit progress tracking matrix for regional compliance."
+      ],
+      "de": [
+        "Workflow zur Zuweisung mehrerer Prüfer für Genossenschaftsprüfungsmandate.",
+        "Fortschrittsmatrix zur regionalen Compliance-Überwachung."
+      ]
+    }
+  }
+]

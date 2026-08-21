@@ -8,6 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useRouter } from "next/navigation";
 import CreateSuggestionModal from "./coopadmin/SuggestionsModal";
 import { useLanguage } from "../contexts/LanguageContext";
+import ChangelogTrigger from "./changelog/ChangelogTrigger";
 
 // Assuming ThemeContext and useTheme are defined elsewhere and imported.
 
@@ -152,6 +153,8 @@ export const Navbar = () => {
             >
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </button>
+
+            <ChangelogTrigger />
 
             {user ? (
               // Profile Dropdown (Desktop)
