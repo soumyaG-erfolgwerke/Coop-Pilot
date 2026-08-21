@@ -6,6 +6,12 @@ export const FEATURE_CATALOG = Object.freeze([
     addedAt: "2026-08-17",
     defaultCustomerEnabled: false,
   },
+  {
+    key: "whats_new_bell",
+    name: "What's new bell announcements",
+    addedAt: "2026-08-22",
+    defaultCustomerEnabled: false,
+  },
 ]);
 
 const COOP = "$coop";
@@ -15,6 +21,7 @@ export const MONITOR_TESTS = Object.freeze([
   { key: "public-home", name: "System - Production application reachable", group: "System", kind: "page", path: "/" },
   { key: "normal-signin", name: "Authentication - Normal sign-in page", group: "Authentication", kind: "page", path: "/signinpage" },
   { key: "test-blank-tab-demo", featureKey: "test_blank_tab", name: "Test feature - Demo cooperative receives blank tab", group: "Feature rollout", kind: "api", role: "coopadmin", path: `/api/features?coopId=${COOP}`, expectedStatus: 200, assertions: [{ path: "features.test_blank_tab", equals: true }] },
+  { key: "whats-new-bell-demo", featureKey: "whats_new_bell", name: "What's new - Demo cooperative receives bell feature", group: "Feature rollout", kind: "api", role: "coopadmin", path: `/api/features?coopId=${COOP}`, expectedStatus: 200, assertions: [{ path: "features.whats_new_bell", equals: true }] },
   ...[
     ["coopadmin", "Coop admin"], ["member", "Member"], ["org_admin", "Audit organisation admin"],
     ["auditer", "Auditor"], ["aud_E", "Sub-auditor"],

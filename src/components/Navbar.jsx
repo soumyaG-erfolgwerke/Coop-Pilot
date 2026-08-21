@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import CreateSuggestionModal from "./coopadmin/SuggestionsModal";
 import { useLanguage } from "../contexts/LanguageContext";
 import ChangelogTrigger from "./changelog/ChangelogTrigger";
+import WhatsNewBell from "./whats-new/WhatsNewBell";
 
 // Assuming ThemeContext and useTheme are defined elsewhere and imported.
 
@@ -155,6 +156,7 @@ export const Navbar = () => {
             </button>
 
             <ChangelogTrigger />
+            <WhatsNewBell />
 
             {user ? (
               // Profile Dropdown (Desktop)
@@ -232,6 +234,7 @@ export const Navbar = () => {
             >
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </button>
+            <WhatsNewBell />
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 text-gray-600 rounded-md dark:text-gray-400 focus:outline-none"

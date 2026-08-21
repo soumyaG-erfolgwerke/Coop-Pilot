@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Clock3, Eye, EyeOff, LogOut, Play, RefreshCcw, RefreshCw, ShieldCheck } from "lucide-react";
+import WhatsNewManager from "@/components/dev-console/WhatsNewManager";
 
-const tabs = ["Features", "Monitoring", "Issues", "Reset demo"];
+const tabs = ["Features", "What's new", "Monitoring", "Issues", "Reset demo"];
 
 async function api(path, options) {
   const response = await fetch(path, { ...options, headers: { "content-type": "application/json", ...(options?.headers || {}) } });
@@ -86,6 +87,8 @@ export default function DevConsolePage() {
         {activeTab === 'Features' && <section className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
           <table className="w-full text-left text-sm"><thead className="bg-slate-900/80 text-slate-400"><tr><th className="px-5 py-4">Feature name</th><th className="px-5 py-4">Added date</th><th className="px-5 py-4 text-center">Demo</th><th className="px-5 py-4 text-right">Customers</th></tr></thead><tbody className="divide-y divide-slate-800">{data?.features?.map((feature) => <tr key={feature.key}><td className="px-5 py-4 font-medium">{feature.name}</td><td className="px-5 py-4 text-slate-300">{feature.addedAt}</td><td className="px-5 py-4"><div className="flex justify-center"><FeatureToggle label={`${feature.name} for demo tenants`} enabled={feature.demoEnabled} disabled={busy} onChange={() => act(() => api(`/api/dev-console/features/${feature.key}`, { method: 'PATCH', body: JSON.stringify({ audience: 'demo', enabled: !feature.demoEnabled }) }))} /></div></td><td className="px-5 py-4"><div className="flex justify-end"><FeatureToggle label={`${feature.name} for customer tenants`} enabled={feature.customerEnabled} disabled={busy} onChange={() => { if (!feature.customerEnabled && !testedFeatures.has(feature.key) && !window.confirm('This feature has not passed monitoring yet. Turn it on for real customers anyway?')) return; act(() => api(`/api/dev-console/features/${feature.key}`, { method: 'PATCH', body: JSON.stringify({ audience: 'customers', enabled: !feature.customerEnabled }) })); }} /></div></td></tr>)}{data?.features?.length === 0 && <tr><td colSpan="4" className="px-5 py-14 text-center text-slate-500">No new features have been added.</td></tr>}</tbody></table>
         </section>}
+
+        {activeTab === "What's new" && <WhatsNewManager />}
 
         {activeTab === 'Monitoring' && <section className="mt-6 space-y-5">
           <div className="grid gap-4 md:grid-cols-3"><Card label="India time" value={new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(now)} icon={<Clock3/>}/><Card label="Auto monitoring" value={data?.autoMonitoringEnabled ? 'ON' : 'OFF'} icon={<RefreshCw/>}/><Card label="Open issues" value={String(data?.issues?.filter((issue) => issue.status === 'Open').length || 0)} icon={<AlertTriangle/>}/></div>
