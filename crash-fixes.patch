@@ -1,0 +1,236 @@
+diff --git a/src/app/api/assembly/proxy/login/route.js b/src/app/api/assembly/proxy/login/route.js
+index 1617e21..de216cb 100644
+--- a/src/app/api/assembly/proxy/login/route.js
++++ b/src/app/api/assembly/proxy/login/route.js
+@@ -9,7 +9,6 @@ import {
+ } from "@/lib/appwrite-server";
+ import { Query } from "node-appwrite";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ 
+ export async function POST(request) {
+   try {
+@@ -27,7 +26,7 @@ export async function POST(request) {
+       );
+     }
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/app/api/auth/login/route.js b/src/app/api/auth/login/route.js
+index 92179cc..e99ecb3 100644
+--- a/src/app/api/auth/login/route.js
++++ b/src/app/api/auth/login/route.js
+@@ -9,7 +9,6 @@ import {
+   COLLECTION_ID_AUDITTEAM_MEMBERS,
+ } from "@/lib/appwrite-server";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ import { logger } from "@/lib/logger";
+ 
+ export async function POST(request) {
+@@ -27,7 +26,7 @@ export async function POST(request) {
+       );
+     }
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/app/api/coopAdminSignUp/create/route.js b/src/app/api/coopAdminSignUp/create/route.js
+index 7955cc9..2b95c3d 100644
+--- a/src/app/api/coopAdminSignUp/create/route.js
++++ b/src/app/api/coopAdminSignUp/create/route.js
+@@ -9,7 +9,6 @@ import {
+   COLLECTION_ID_COOP_REGISTRY 
+ } from "@/lib/appwrite-server";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ import { safePublicError } from "@/lib/api/safe-public-error";
+ import { isValidCoopSignupData } from "@/lib/validation/coop-signup";
+ 
+@@ -21,7 +20,7 @@ export async function POST(request) {
+ 
+     const captchaToken = formData.captchaToken;
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/app/api/coopAdminSignUpV2/create/route.js b/src/app/api/coopAdminSignUpV2/create/route.js
+index 95468b7..0afabae 100644
+--- a/src/app/api/coopAdminSignUpV2/create/route.js
++++ b/src/app/api/coopAdminSignUpV2/create/route.js
+@@ -20,7 +20,6 @@ import {
+   changeInviteToAccepted,
+ } from "@/services/auditOrgServices/miscellaneous";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ import { assertMalwareFree } from "@/lib/files/malware-scan";
+ import { isValidCoopSignupData } from "@/lib/validation/coop-signup";
+ import { safePublicError } from "@/lib/api/safe-public-error";
+@@ -42,7 +41,7 @@ export async function POST(request) {
+ 
+     const captchaToken = formData.get("captchaToken");
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/app/api/forget-password/route.js b/src/app/api/forget-password/route.js
+index 3e908b7..fbae23e 100644
+--- a/src/app/api/forget-password/route.js
++++ b/src/app/api/forget-password/route.js
+@@ -1,7 +1,6 @@
+ import { NextResponse } from "next/server";
+ import { createAdminClient } from "@/lib/appwrite-server";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ 
+ // POST /api/forget-password - Create password recovery email
+ export async function POST(request) {
+@@ -59,7 +58,7 @@ export async function PUT(request) {
+       );
+     }
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/app/api/orgadmin/create/route.js b/src/app/api/orgadmin/create/route.js
+index 14c237d..e1c6879 100644
+--- a/src/app/api/orgadmin/create/route.js
++++ b/src/app/api/orgadmin/create/route.js
+@@ -11,7 +11,6 @@ import {
+ import { getSecureFileUrl } from "@/lib/secureFileUrl";
+ import { createRollbackManager } from "@/lib/rollbackService";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ import { safePublicError } from "@/lib/api/safe-public-error";
+ import { assertMalwareFree } from "@/lib/files/malware-scan";
+ import { InputFile } from "node-appwrite/file";
+@@ -41,7 +40,7 @@ export async function POST(request) {
+       );
+     }
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/app/api/userServices/update/password/route.js b/src/app/api/userServices/update/password/route.js
+index f81ad42..64ce300 100644
+--- a/src/app/api/userServices/update/password/route.js
++++ b/src/app/api/userServices/update/password/route.js
+@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
+ import { appwriteFetchWithSession } from "@/lib/appwrite-server";
+ import { validatePassword } from "@/helpers/passwordValidator";
+ import { verifyCaptcha } from "@/lib/helpers/captchaHelper";
+-import { getCaptchaProvider } from "@/lib/captcha/provider";
+ import { resolveSession, sessionErrorResponse } from "@/lib/auth/session";
+ 
+ // POST /api/userServices/update/password
+@@ -21,7 +20,7 @@ export async function POST(request) {
+ 
+     const { oldPassword, newPassword, captchaToken } = body;
+ 
+-    if (!captchaToken && process.env.NODE_ENV === "production" && getCaptchaProvider() !== "disabled") {
++    if (!captchaToken && process.env.NODE_ENV === "production") {
+       return NextResponse.json(
+         { error: "Captcha token is required" },
+         { status: 400 },
+diff --git a/src/lib/captcha/provider.js b/src/lib/captcha/provider.js
+index 28a244b..eccfb35 100644
+--- a/src/lib/captcha/provider.js
++++ b/src/lib/captcha/provider.js
+@@ -9,9 +9,10 @@ import { verifyTrust } from "./verifyTrust";
+  */
+ export function getCaptchaProvider() {
+   const provider = process.env.CAPTCHA_PROVIDER || process.env.NEXT_PUBLIC_CAPTCHA_PROVIDER;
+-  if (provider === "google" && process.env.FORCE_ENABLE_CAPTCHA !== "true") return "disabled";
+-  if (provider === "trustcaptcha" && process.env.FORCE_ENABLE_CAPTCHA !== "true") return "disabled";
+-  return "disabled";
++  if (provider === "google") return "google";
++  if (provider === "trustcaptcha") return "trustcaptcha";
++  if (provider === "disabled") return "disabled";
++  return "google"; // Default active provider
+ }
+ 
+ /**
+diff --git a/src/pages/AuditSignInPage.jsx b/src/pages/AuditSignInPage.jsx
+index a33dd8c..ce65983 100644
+--- a/src/pages/AuditSignInPage.jsx
++++ b/src/pages/AuditSignInPage.jsx
+@@ -33,7 +33,7 @@ const LinkSetPasswordModal = ({ isOpen, onClose, searchParams }) => {
+   const router = useRouter();
+ 
+   const [captchaToken, setCaptchaToken] = useState("");
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NODE_ENV === "production";
+ 
+   const userId = searchParams.get("userId");
+   const secret = searchParams.get("secret");
+@@ -208,7 +208,7 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [captchaToken, setCaptchaToken] = useState("");
+ 
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NODE_ENV === "production";
+ 
+   useEffect(() => {
+     setEmail("");
+@@ -359,7 +359,7 @@ const AuditSignInPage = () => {
+     useState(false);
+   const [isSetPasswordModalOpen, setIsSetPasswordModalOpen] = useState(false);
+ 
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NODE_ENV === "production";
+   
+   useEffect(() => {
+     setEmail("");
+diff --git a/src/pages/SignInPage.jsx b/src/pages/SignInPage.jsx
+index 9dcfbad..0e04718 100644
+--- a/src/pages/SignInPage.jsx
++++ b/src/pages/SignInPage.jsx
+@@ -39,7 +39,7 @@ const LinkSetPasswordModal = ({ isOpen, onClose, searchParams }) => {
+   const router = useRouter();
+ 
+   const [captchaToken, setCaptchaToken] = useState("");
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NEXT_PUBLIC_NODE_ENV === "production";
+ 
+   const userId = searchParams.get("userId");
+   const secret = searchParams.get("secret");
+@@ -577,7 +577,7 @@ const LinkForgotPasswordModal = ({ isOpen, onClose }) => {
+   const [successMessage, setSuccessMessage] = useState("");
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [captchaToken, setCaptchaToken] = useState("");
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NODE_ENV === "production";
+ 
+   useEffect(() => {
+     if (isOpen) {
+@@ -726,7 +726,7 @@ const OTPForgotPasswordModal = ({ isOpen, onClose }) => {
+   const [showOTPModal, setShowOTPModal] = useState(false);
+   const [sentEmail, setSentEmail] = useState("");
+   const [captchaToken, setCaptchaToken] = useState("");
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NODE_ENV === "production";
+ 
+   useEffect(() => {
+     if (isOpen) {
+@@ -873,7 +873,7 @@ const LoginModal = ({ isOpen, onClose, onSubmit, onForgotPasswordClick }) => {
+   const [showPassword, setShowPassword] = useState(false);
+   const [error, setError] = useState("");
+   const [captchaToken, setCaptchaToken] = useState("");
+-  const isDeployment = process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FORCE_ENABLE_CAPTCHA === "true";
++  const isDeployment = process.env.NODE_ENV === "production";
+ 
+   useEffect(() => {
+     if (isOpen) {
