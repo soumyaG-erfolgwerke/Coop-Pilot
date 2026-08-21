@@ -41,7 +41,8 @@ export default function PricingCTA() {
 
           {/* BUTTONS */}
           <div className="flex flex-col justify-center gap-4 sm:flex-row ">
-            <Link href={"https://www.cal.eu/hystandards/30min"} target="_blank">
+            {/* ORIGINAL DEMO LINK: href={"https://www.cal.eu/hystandards/30min"} */}
+            <Link href="#" onClick={(e) => e.preventDefault()}>
               <ButtonFlippedReveal
                 className="flex items-center justify-center gap-3 px-6 py-3 text-black bg-white rounded-xl"
                 isBorder={false}

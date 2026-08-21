@@ -64,7 +64,8 @@ const FeatureModuleLayout = ({
 
           {ctaLink && (
             <div className="mt-4">
-              <Link href={ctaLink}>
+              {/* ORIGINAL DEMO LINK: href={ctaLink} */}
+              <Link href="#" onClick={(e) => e.preventDefault()}>
                 <ButtonFlippedRevealV2 className="px-8 py-3.5 bg-primary border-2 border-primary text-white hover:bg-primary/95 font-bold transition-all text-center rounded-xl inline-flex items-center justify-center">
                   {ctaText}
                 </ButtonFlippedRevealV2>
