@@ -33,7 +33,8 @@ const TransformCoop = () => {
               {language === "de" ? "Preise anzeigen" : "View Pricing"}
             </ButtonFlippedRevealV2>
           </Link> */}
-          <Link href="https://cal.eu/hystandards/30min" className="w-full sm:w-auto">
+          {/* ORIGINAL DEMO LINK: href="https://cal.eu/hystandards/30min" */}
+          <Link href="#" onClick={(e) => e.preventDefault()} className="w-full sm:w-auto">
             <ButtonFlippedRevealV2
               className="w-full sm:w-auto px-8 py-3.5 bg-transparent border-2 border-white text-white hover:bg-white/10 font-bold transition-all text-center rounded-xl flex items-center justify-center"
             >

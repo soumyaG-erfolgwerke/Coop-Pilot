@@ -427,7 +427,14 @@ export default function FormBuilderPage({
     const pIndex = getActivePhaseIndex();
     const phase = schema.phases[pIndex];
     const newFieldId = crypto.randomUUID();
-    const insertIndex = phase.fields.length; // Always append to the end of the section
+    
+    let insertIndex = phase.fields.length;
+    const activeFieldIndex = phase.fields.findIndex(f => f.fieldId === activeId);
+    if (activeFieldIndex !== -1) {
+      insertIndex = activeFieldIndex + 1;
+    } else if (activeId === phase.phaseId) {
+      insertIndex = 0;
+    }
 
     const newFields = [...phase.fields];
     newFields.splice(insertIndex, 0, {

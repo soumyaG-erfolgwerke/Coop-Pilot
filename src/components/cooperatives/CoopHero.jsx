@@ -74,8 +74,9 @@ const CoopHero = () => {
               {language === "de" ? "Preise anzeigen" : "View Pricing"}
             </ButtonFlippedRevealV2>
           </Link> */}
+          {/* ORIGINAL DEMO LINK: href="https://cal.eu/hystandards/30min" */}
           <Link
-            href="https://cal.eu/hystandards/30min"
+            href="#" onClick={(e) => e.preventDefault()}
             className="w-full sm:w-auto"
           >
             <ButtonFlippedRevealV2

@@ -49,7 +49,8 @@ export default function FinalCTA() {
               </ButtonFlippedReveal>
             </Link>
 
-            <Link href={"https://www.cal.eu/hystandards/30min"} target="_blank">
+            {/* ORIGINAL DEMO LINK: href={"https://www.cal.eu/hystandards/30min"} */}
+            <Link href="#" onClick={(e) => e.preventDefault()}>
               <ButtonOutlineHoverSolid className="flex items-center justify-center gap-2 px-6 py-3 font-medium border-white rounded-xl">
                 {language === "de" ? "Demo buchen" : "Book a Demo"}
               </ButtonOutlineHoverSolid>

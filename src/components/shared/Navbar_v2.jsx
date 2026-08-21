@@ -121,7 +121,8 @@ const Navbar = () => {
           <div className="w-[3px] h-8 bg-slate-200 rounded-full mx-1" />
           
           <div className="flex flex-row items-center justify-center gap-2">
-            <Link href="https://cal.eu/hystandards/30min">
+            {/* ORIGINAL DEMO LINK: href="https://cal.eu/hystandards/30min" */}
+            <Link href="#" onClick={(e) => e.preventDefault()}>
               <ButtonFlippedRevealV2 className="p-2 border-[2px] border-primary text-primary font-semibold capitalize">
                 <p className="px-2">{t("Book free Demo")}</p>
               </ButtonFlippedRevealV2>
@@ -229,7 +230,8 @@ const Navbar = () => {
 
               {/* Drawer Footer with Buttons */}
               <div className="flex flex-col gap-3 p-6 border-t border-slate-100">
-                <Link href="https://cal.eu/hystandards/30min">
+                {/* ORIGINAL DEMO LINK: href="https://cal.eu/hystandards/30min" */}
+                <Link href="#" onClick={(e) => e.preventDefault()}>
                   <ButtonFlippedRevealV2
                     className="w-full py-3 border-[3px] border-primary text-primary font-semibold flex justify-center"
                     fullWidth={true}

@@ -81,11 +81,12 @@ const ComplianceCTA = () => {
   const { language } = useLanguage();
 
   const handleDemoBooking = () => {
-    window.open(
-      "https://cal.eu/hystandards/30min",
-      "_blank",
-      "noopener,noreferrer",
-    );
+    // ORIGINAL DEMO LINK:
+    // window.open(
+    //   "https://cal.eu/hystandards/30min",
+    //   "_blank",
+    //   "noopener,noreferrer",
+    // );
   };
 
   return (
