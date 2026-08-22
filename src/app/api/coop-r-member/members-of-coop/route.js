@@ -120,13 +120,9 @@ export async function GET(request) {
                     ]
                 );
 
-                // Fetch profiles for member names and emails across all schema variants
                 profileResults.documents.forEach(doc => {
-                    // Extract constructed first/last name or fallback to fullName, name, email
-                    const constructedName = `${doc.FirstName || doc.firstName || ""} ${doc.LastName || doc.lastName || ""}`.trim();
-                    const finalName = constructedName || doc.fullName || doc.name || doc.email || "Unknown";
                     profileMap[doc.userId] = {
-                        name: finalName,
+                        name: `${doc.FirstName || ""} ${doc.LastName || ""}`.trim(),
                         email: doc.contactEmail || doc.email || ""
                     };
                 });
@@ -135,19 +131,15 @@ export async function GET(request) {
             }
         }
 
-        // Build result with merged data and robust membername fallbacks
-        const result = memberIds.map((memberId) => {
-            const resolvedName = profileMap[memberId]?.name;
-            const validName = (resolvedName && resolvedName.trim() !== "") ? resolvedName : "Unknown";
-            return {
-                userId: memberId,
-                membername: validName,
-                memberemail: profileMap[memberId]?.email || "Unknown",
-                totalShares: grouped[memberId].totalShares,
-                totalPrice: grouped[memberId].totalPrice,
-                kycStatus: kycMap[memberId] || "PENDING", // Default to PENDING if no record exists yet
-            };
-        });
+        // Build result with merged data
+        const result = memberIds.map((memberId) => ({
+            userId: memberId,
+            membername: profileMap[memberId]?.name || "Unknown",
+            memberemail: profileMap[memberId]?.email || "Unknown",
+            totalShares: grouped[memberId].totalShares,
+            totalPrice: grouped[memberId].totalPrice,
+            kycStatus: kycMap[memberId] || "PENDING", // Default to PENDING if no record exists yet
+        }));
 
         return NextResponse.json({ success: true, members: result });
     } catch (error) {
