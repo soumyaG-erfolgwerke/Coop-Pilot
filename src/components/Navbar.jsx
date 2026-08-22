@@ -9,6 +9,9 @@ import { useRouter } from "next/navigation";
 import CreateSuggestionModal from "./coopadmin/SuggestionsModal";
 import { useLanguage } from "../contexts/LanguageContext";
 import ChangelogTrigger from "./changelog/ChangelogTrigger";
+// Import Global Search Trigger and Command Palette Modal components
+import GlobalSearchTrigger from "./search/GlobalSearchTrigger";
+import GlobalSearchModal from "./search/GlobalSearchModal";
 
 // Assuming ThemeContext and useTheme are defined elsewhere and imported.
 
@@ -21,8 +24,17 @@ export const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [suggestionModalOpen, setSuggestionModalOpen] = useState(false);
+  // State for controlling Global Search Modal open/close visibility
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const profileMenuRef = useRef(null);
+
+  // Listen for open-global-search custom event dispatched by hotkeys
+  useEffect(() => {
+    const handleOpenSearch = () => setIsSearchOpen(true);
+    window.addEventListener("open-global-search", handleOpenSearch);
+    return () => window.removeEventListener("open-global-search", handleOpenSearch);
+  }, []);
 
   // Close profile dropdown if clicking outside
   useEffect(() => {
@@ -153,6 +165,11 @@ export const Navbar = () => {
             >
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </button>
+
+            {/* Global Search Trigger Bar for Authenticated Users */}
+            {user && (
+              <GlobalSearchTrigger onClick={() => setIsSearchOpen(true)} />
+            )}
 
             <ChangelogTrigger />
 
@@ -312,6 +329,12 @@ export const Navbar = () => {
       <CreateSuggestionModal
         isOpen={suggestionModalOpen}
         onClose={() => setSuggestionModalOpen(false)}
+      />
+
+      {/* Render Command Palette Search Modal */}
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
       />
     </nav>
   );
