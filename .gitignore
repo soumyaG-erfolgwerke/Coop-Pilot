@@ -41,6 +41,8 @@ dist-ssr
 GEMINI.md
 .gemini
 .gemini.md
+.gemini/
+.private/
 
 # Claude
 .claude

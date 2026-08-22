@@ -169,12 +169,14 @@ export async function GET(request) {
         const constructedName = `${m.FirstName || m.firstName || ""} ${m.LastName || m.lastName || ""}`.trim();
         const displayName = constructedName || m.fullName || m.name || m.email || "Member";
         const displayEmail = m.contactEmail || m.email || "";
+        const targetCoop = m.coopId || m.cooperativeId || (allowedCoopIds.length > 0 ? allowedCoopIds[0] : "");
+        const targetUserId = m.userId || m.$id;
         return {
           id: m.$id,
           title: displayName,
           subtitle: displayEmail ? `${displayEmail} ${m.memberId ? `• Member #${m.memberId}` : ""}` : "Cooperative Member",
           type: "member",
-          url: `/admin/members?id=${m.$id}`,
+          url: `/memberDetails/${targetUserId}${targetCoop ? `?coopId=${targetCoop}` : ""}`,
           badge: "Member",
         };
       });
@@ -207,7 +209,7 @@ export async function GET(request) {
         title: d.title || d.fileName || d.name || "Untitled Document",
         subtitle: `${d.category || "FINANZEN"} • ${d.fileType || d.ext || "PDF"} ${d.uploadedAt || d.$createdAt ? `• ${new Date(d.uploadedAt || d.$createdAt).toLocaleDateString()}` : ""}`,
         type: "document",
-        url: `/dashboard?tab=doc-upload&id=${d.$id}`,
+        url: `/dashboard?tab=doc-upload&docId=${d.$id}`,
         badge: d.category || "Document",
         fileType: d.fileType || d.ext || "pdf",
       }));
@@ -228,7 +230,7 @@ export async function GET(request) {
         title: `Transaction ${t.reference || t.$id.substring(0, 8)}`,
         subtitle: `${t.amount ? `€${t.amount}` : ""} ${t.memberName ? `• ${t.memberName}` : ""} ${t.status ? `• ${t.status}` : ""}`,
         type: "transaction",
-        url: `/admin/finances?ref=${t.$id}`,
+        url: `/dashboard?tab=transactions`,
         badge: t.status || "Transaction",
       }));
 
@@ -248,7 +250,7 @@ export async function GET(request) {
         title: a.title || a.topic || `Assembly ${a.year || ""}`,
         subtitle: `${a.year ? `Assembly Year ${a.year}` : "General Assembly"} ${a.status ? `• ${a.status}` : ""}`,
         type: "resolution",
-        url: `/admin/assembly?id=${a.$id}`,
+        url: `/dashboard?tab=assembly`,
         badge: "Resolution",
       }));
 
@@ -268,7 +270,7 @@ export async function GET(request) {
         title: ap.applicantName || ap.fullName || ap.email || "Membership Application",
         subtitle: `${ap.email || ""} ${ap.status ? `• Status: ${ap.status}` : ""}`,
         type: "application",
-        url: `/admin/applications?id=${ap.$id}`,
+        url: `/dashboard?tab=onboarding-member`,
         badge: ap.status || "Application",
       }));
 

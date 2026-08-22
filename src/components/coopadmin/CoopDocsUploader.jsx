@@ -8,6 +8,10 @@ import { getDocumentsofCoop, uploadDocuments } from "@/lib/coopService";
 import DocumentCard from "../ui/DocumentCard";
 import dynamic from "next/dynamic";
 
+import { useSearchParams, useRouter } from "next/navigation";
+import { getViewUrl } from "@/lib/fileUrlService";
+import { guessMimeType } from "@/lib/guessMimeType";
+
 const ViewerContent = dynamic(() => import("../fileViewer"), {
   ssr: false,
   loading: () => (
@@ -65,6 +69,10 @@ const allowedTypes = [
 ];
 
 export default function CoopDocsUploader({ coopId, userId }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetDocId = searchParams ? (searchParams.get("docId") || searchParams.get("id")) : null;
+
   const [documents, setDocuments] = useState([]);
   const [uploadedDocs, setUploadedDocs] = useState({});
   const [uploading, setUploading] = useState(false);
@@ -76,6 +84,17 @@ export default function CoopDocsUploader({ coopId, userId }) {
   const [filterDate, setFilterDate] = useState("");
 
   const fileInputRef = useRef(null);
+
+  // Close viewer modal and strip docId/id searchParams from URL so refresh won't re-open unexpectedly
+  const handleCloseViewer = () => {
+    setViewingDoc(null);
+    if (targetDocId && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("docId");
+      url.searchParams.delete("id");
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  };
 
   const fetchDocs = async () => {
     setLoadingDocs(true);
@@ -92,6 +111,28 @@ export default function CoopDocsUploader({ coopId, userId }) {
   useEffect(() => {
     if (coopId) fetchDocs();
   }, [coopId]);
+
+  // Auto-open target document preview modal when navigating via Global Search (docId or id in URL)
+  useEffect(() => {
+    if (!targetDocId || Object.keys(uploadedDocs).length === 0) return;
+    for (const cat of Object.keys(uploadedDocs)) {
+      const docList = uploadedDocs[cat];
+      if (Array.isArray(docList)) {
+        const found = docList.find((d) => d.$id === targetDocId || d.id === targetDocId || d.fileId === targetDocId);
+        if (found) {
+          setOpenCategory(cat);
+          // Format document with fileUrl and mimeType using getViewUrl helper
+          setViewingDoc({
+            fileName: found.fileName,
+            fileUrl: getViewUrl(found.fileId || found.$id),
+            mimeType: found.mimeType || guessMimeType(found.fileName),
+            downloadAllowed: found.downloadAllowed
+          });
+          break;
+        }
+      }
+    }
+  }, [targetDocId, uploadedDocs]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -618,7 +659,7 @@ export default function CoopDocsUploader({ coopId, userId }) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
-              onClick={() => setViewingDoc(null)}
+              onClick={handleCloseViewer}
             />
 
             <motion.div
@@ -638,7 +679,7 @@ export default function CoopDocsUploader({ coopId, userId }) {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => setViewingDoc(null)}
+                    onClick={handleCloseViewer}
                     className="p-2 transition-colors rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     title="Close Viewer"
                   >

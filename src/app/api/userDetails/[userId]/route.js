@@ -37,14 +37,10 @@ export async function GET(request, { params }) {
         { status: 400 }
       );
     }
-    if (userId !== session.userId) {
-      if (!coopId) throw new AuthorizationError();
-      await requireCoopAdministration(session, coopId);
-    }
 
     const { databases } = createAdminClient();
 
-    // Query profile from database
+    // Query profile from database first to resolve user profile and target coopId
     const profileResult = await databases.listDocuments(
       DATABASE_ID,
       COLLECTION_ID_PROFILE,
@@ -59,9 +55,24 @@ export async function GET(request, { params }) {
     }
 
     const prf = profileResult.documents[0];
+    const effectiveCoopId = coopId || prf.coopId || prf.cooperativeId || null;
+
+    // Verify session user authorization (allow superuser, user self, or coop admin)
+    if (userId !== session.userId) {
+      if (["superuser", "superadmin"].includes(session?.role?.toLowerCase())) {
+        // Superuser bypass authorization check
+      } else if (effectiveCoopId) {
+        await requireCoopAdministration(session, effectiveCoopId);
+      } else if (session?.role?.toLowerCase() === "coopadmin") {
+        // Coop admin access permitted
+      } else {
+        throw new AuthorizationError();
+      }
+    }
+
     let kycStatus = "UNKNOWN";
     try {
-      kycStatus = await getKycStatus(userId, false, coopId);
+      kycStatus = await getKycStatus(userId, false, effectiveCoopId);
     } catch (err) {
       console.error(`Error fetching KYC status for user ${userId}:`, err);
     }
@@ -120,12 +131,12 @@ export async function GET(request, { params }) {
             ])
           ]);
 
-          // Filter apps by coopId if provided, to ensure we display the correct coop-specific attempts.
+          // Filter apps by effectiveCoopId if provided, to ensure we display the correct coop-specific attempts.
           // Fall back to legacy apps (which have no coopId).
           let apps = appsRes.documents;
-          if (coopId) {
+          if (effectiveCoopId) {
             apps = apps.filter(app => 
-              (app.coopId === coopId || (app.coopId && app.coopId.$id === coopId)) ||
+              (app.coopId === effectiveCoopId || (app.coopId && app.coopId.$id === effectiveCoopId)) ||
               (!app.coopId || (app.coopId && typeof app.coopId === 'object' && !app.coopId.$id))
             );
           }
