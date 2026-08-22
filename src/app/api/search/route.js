@@ -51,7 +51,6 @@ export async function GET(request) {
     const COLLECTION_APPLICATIONS = "69d40812002f183fd39b";
 
     const userId = session.userId || session.profile?.userId;
-    const userEmail = session.email || session.profile?.email;
     const userRole = session.role || session.profile?.role || "";
 
     // 4. Resolve Multi-Cooperative Authorized Scope (GitHub Organization Model)
@@ -61,7 +60,7 @@ export async function GET(request) {
     if (session.profile?.coopId) allowedCoopIds.push(session.profile.coopId);
     if (session.profile?.cooperativeId) allowedCoopIds.push(session.profile.cooperativeId);
 
-    // Fetch all user profiles matching userId / email to build full multi-coop scope
+    // Fetch all user profiles matching userId to build full multi-coop scope
     try {
       const userProfilesRes = await databases.listDocuments(
         DATABASE_ID,
@@ -145,24 +144,40 @@ export async function GET(request) {
     };
 
     // 6. Process and filter Members across authorized cooperatives
+    // Inspects FirstName, LastName, fullName, name, contactEmail, and email with domain safety
     const rawMembers = membersRes.status === "fulfilled" ? membersRes.value.documents : [];
     const members = rawMembers
       .filter((m) => {
         if (!isCoopAllowed(m.coopId || m.cooperativeId)) return false;
-        const name = (m.fullName || m.name || "").toLowerCase();
-        const email = (m.email || "").toLowerCase();
-        const num = String(m.memberId || m.memberNumber || "").toLowerCase();
-        return name.includes(termLower) || email.includes(termLower) || num.includes(termLower);
+        
+        // Extract complete name from all possible Appwrite schema fields
+        const constructedName = `${m.FirstName || m.firstName || ""} ${m.LastName || m.lastName || ""}`.trim();
+        const fullName = (constructedName || m.fullName || m.name || "").toLowerCase();
+        const rawEmail = (m.contactEmail || m.email || "").toLowerCase();
+        const emailPrefix = rawEmail.split("@")[0] || "";
+        const num = String(m.memberId || m.memberNumber || m.$id || "").toLowerCase();
+
+        // Match against full name, first name, last name, member ID, or email prefix/full email
+        const matchesName = fullName.includes(termLower);
+        const matchesEmail = rawEmail.includes(termLower) && (termLower.includes("@") || emailPrefix.includes(termLower));
+        const matchesNum = num.includes(termLower);
+
+        return matchesName || matchesEmail || matchesNum;
       })
-      .slice(0, 5)
-      .map((m) => ({
-        id: m.$id,
-        title: m.fullName || m.name || m.email,
-        subtitle: m.email ? `${m.email} ${m.memberId ? `• Member #${m.memberId}` : ""}` : "Cooperative Member",
-        type: "member",
-        url: `/admin/members?id=${m.$id}`,
-        badge: "Member",
-      }));
+      .slice(0, 8)
+      .map((m) => {
+        const constructedName = `${m.FirstName || m.firstName || ""} ${m.LastName || m.lastName || ""}`.trim();
+        const displayName = constructedName || m.fullName || m.name || m.email || "Member";
+        const displayEmail = m.contactEmail || m.email || "";
+        return {
+          id: m.$id,
+          title: displayName,
+          subtitle: displayEmail ? `${displayEmail} ${m.memberId ? `• Member #${m.memberId}` : ""}` : "Cooperative Member",
+          type: "member",
+          url: `/admin/members?id=${m.$id}`,
+          badge: "Member",
+        };
+      });
 
     // 7. Process and filter Documents across authorized cooperatives
     // Matches Document Title ("Weekly Hours Worked Summary"), File Name, Category, Tags, Ref ID & Uploaders
