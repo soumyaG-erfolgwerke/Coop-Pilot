@@ -12,6 +12,7 @@ import ChangelogTrigger from "./changelog/ChangelogTrigger";
 // Import Global Search Trigger and Command Palette Modal components
 import GlobalSearchTrigger from "./search/GlobalSearchTrigger";
 import GlobalSearchModal from "./search/GlobalSearchModal";
+import WhatsNewBell from "./whats-new/WhatsNewBell";
 
 // Assuming ThemeContext and useTheme are defined elsewhere and imported.
 
@@ -172,6 +173,7 @@ export const Navbar = () => {
             )}
 
             <ChangelogTrigger />
+            <WhatsNewBell />
 
             {user ? (
               // Profile Dropdown (Desktop)
@@ -249,6 +251,7 @@ export const Navbar = () => {
             >
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </button>
+            <WhatsNewBell />
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 text-gray-600 rounded-md dark:text-gray-400 focus:outline-none"
