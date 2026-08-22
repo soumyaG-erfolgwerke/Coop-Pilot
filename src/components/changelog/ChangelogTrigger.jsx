@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Sparkles } from "lucide-react";
+// Import Megaphone icon from lucide-react to signal product announcements and release notes
+import { Megaphone } from "lucide-react";
 import {
   fetchChangelog,
   filterChangelogsByRole,
@@ -48,7 +48,8 @@ export default function ChangelogTrigger() {
         title={language === "de" ? "Was gibt's Neues" : "What's New"}
         aria-label="What's New"
       >
-        <Sparkles size={20} className="text-slate-600 dark:text-slate-300" />
+        {/* Render Megaphone mic icon for product announcements */}
+        <Megaphone size={20} className="text-slate-600 dark:text-slate-300" />
         {unread && (
           <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
