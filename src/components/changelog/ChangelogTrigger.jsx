@@ -1,5 +1,7 @@
 "use client";
 
+// Import React hooks for component state and effect handling
+import React, { useState, useEffect } from "react";
 // Import Megaphone icon from lucide-react to signal product announcements and release notes
 import { Megaphone } from "lucide-react";
 import {
