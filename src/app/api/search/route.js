@@ -6,9 +6,15 @@ import { resolveSession } from "@/lib/auth/session";
 // Main GET endpoint for Multi-Cooperative Global Search
 export async function GET(request) {
   try {
-    // 1. Resolve active user session from request headers/cookies
-    const session = await resolveSession(request);
-    if (!session || !session.user) {
+    // 1. Resolve active user session using standard session helper
+    let session = null;
+    try {
+      session = await resolveSession();
+    } catch (e) {
+      console.log("Global search session error:", e.message);
+    }
+
+    if (!session || (!session.userId && !session.profile)) {
       return NextResponse.json(
         { success: false, error: "Unauthorized access" },
         { status: 401 }
@@ -43,25 +49,35 @@ export async function GET(request) {
     const COLLECTION_TRANSACTIONS = "683f2692002574988b87";
     const COLLECTION_ASSEMBLIES = "assemblies";
     const COLLECTION_APPLICATIONS = "69d40812002f183fd39b";
-    const COLLECTION_COOPERATIVE = "683f21190030cfd38fce";
+
+    const userId = session.userId || session.profile?.userId;
+    const userEmail = session.email || session.profile?.email;
+    const userRole = session.role || session.profile?.role || "";
 
     // 4. Resolve Multi-Cooperative Authorized Scope (GitHub Organization Model)
-    // Extracts all cooperative IDs that the logged-in Coop Admin / User has access to
+    // Collects all cooperative IDs associated with the logged-in Coop Admin / User
     let allowedCoopIds = [];
-    if (session.user.coopId) allowedCoopIds.push(session.user.coopId);
-    if (session.user.cooperativeId) allowedCoopIds.push(session.user.cooperativeId);
+    if (session.coopId) allowedCoopIds.push(session.coopId);
+    if (session.profile?.coopId) allowedCoopIds.push(session.profile.coopId);
+    if (session.profile?.cooperativeId) allowedCoopIds.push(session.profile.cooperativeId);
 
-    // Fetch user profile and cooperative memberships to build full multi-coop scope
+    // Fetch all user profiles matching userId / email to build full multi-coop scope
     try {
       const userProfilesRes = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_PROFILE,
-        [Query.equal("userId", session.user.$id)]
+        [
+          Query.equal("userId", userId),
+          Query.limit(50),
+        ]
       );
       if (userProfilesRes.documents.length > 0) {
         userProfilesRes.documents.forEach((p) => {
           if (p.coopId && !allowedCoopIds.includes(p.coopId)) {
             allowedCoopIds.push(p.coopId);
+          }
+          if (p.cooperativeId && !allowedCoopIds.includes(p.cooperativeId)) {
+            allowedCoopIds.push(p.cooperativeId);
           }
           if (Array.isArray(p.coopIds)) {
             p.coopIds.forEach((id) => {
@@ -73,6 +89,9 @@ export async function GET(request) {
     } catch (e) {
       console.log("Multi-coop profile lookup note:", e.message);
     }
+
+    // Deduplicate allowedCoopIds
+    allowedCoopIds = [...new Set(allowedCoopIds.filter(Boolean))];
 
     const termLower = queryStr.toLowerCase();
 
@@ -116,10 +135,12 @@ export async function GET(request) {
       ])
     ]);
 
-    // Helper: Verify if record belongs to authorized multi-coop scope
+    // Helper: Verify if record belongs to authorized multi-coop scope for Coop Admin
     const isCoopAllowed = (recordCoopId) => {
-      if (allowedCoopIds.length === 0) return true; // If no coop restrictions on user, allow access
-      if (!recordCoopId) return true; // General shared records allowed
+      // Super admins / auditors can search across all cooperatives
+      if (["org_admin", "auditer", "aud_E", "aud_T"].includes(userRole)) return true;
+      if (allowedCoopIds.length === 0) return true; // If no coop restrictions on user, allow search
+      if (!recordCoopId) return true; // Shared global templates allowed
       return allowedCoopIds.includes(recordCoopId);
     };
 
@@ -127,7 +148,7 @@ export async function GET(request) {
     const rawMembers = membersRes.status === "fulfilled" ? membersRes.value.documents : [];
     const members = rawMembers
       .filter((m) => {
-        if (!isCoopAllowed(m.coopId)) return false;
+        if (!isCoopAllowed(m.coopId || m.cooperativeId)) return false;
         const name = (m.fullName || m.name || "").toLowerCase();
         const email = (m.email || "").toLowerCase();
         const num = String(m.memberId || m.memberNumber || "").toLowerCase();
@@ -151,10 +172,10 @@ export async function GET(request) {
     ];
     const documents = rawDocs
       .filter((d) => {
-        if (!isCoopAllowed(d.coopId)) return false;
+        if (!isCoopAllowed(d.coopId || d.cooperativeId)) return false;
         const title = (d.title || d.fileName || d.name || d.filename || "").toLowerCase();
         const cat = (d.category || d.folder || d.type || "").toLowerCase();
-        const ref = (d.refId || d.$id || "").toLowerCase();
+        const ref = (d.refId || d.refYear || d.$id || "").toLowerCase();
         const tags = Array.isArray(d.tags) ? d.tags.join(" ").toLowerCase() : (d.tags || "").toLowerCase();
         const uploader = (d.uploaderName || d.uploadedBy || "").toLowerCase();
         return (
@@ -180,7 +201,7 @@ export async function GET(request) {
     const rawTx = txRes.status === "fulfilled" ? txRes.value.documents : [];
     const transactions = rawTx
       .filter((t) => {
-        if (!isCoopAllowed(t.coopId)) return false;
+        if (!isCoopAllowed(t.coopId || t.cooperativeId)) return false;
         const ref = (t.reference || t.refNo || t.$id || "").toLowerCase();
         const amt = String(t.amount || "").toLowerCase();
         const name = (t.memberName || t.sender || "").toLowerCase();
@@ -200,7 +221,7 @@ export async function GET(request) {
     const rawAssemblies = assembliesRes.status === "fulfilled" ? assembliesRes.value.documents : [];
     const resolutions = rawAssemblies
       .filter((a) => {
-        if (!isCoopAllowed(a.coopId)) return false;
+        if (!isCoopAllowed(a.coopId || a.cooperativeId)) return false;
         const title = (a.title || a.name || a.topic || "").toLowerCase();
         const year = String(a.year || a.assemblyYear || "").toLowerCase();
         const desc = (a.description || a.summary || "").toLowerCase();
@@ -220,7 +241,7 @@ export async function GET(request) {
     const rawApps = appsRes.status === "fulfilled" ? appsRes.value.documents : [];
     const applications = rawApps
       .filter((ap) => {
-        if (!isCoopAllowed(ap.coopId)) return false;
+        if (!isCoopAllowed(ap.coopId || ap.cooperativeId)) return false;
         const name = (ap.applicantName || ap.fullName || ap.name || "").toLowerCase();
         const email = (ap.email || "").toLowerCase();
         const status = (ap.status || "").toLowerCase();
