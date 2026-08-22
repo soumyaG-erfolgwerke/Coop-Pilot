@@ -108,12 +108,12 @@ const useUserCache = () => {
       );
       return userObj;
     } catch (err) {
-      // console.error(`❌ Couldn’t fetch user ${userId}:`, err);
+      // Return empty fallback fields on error to avoid displaying hardcoded "null" string
       return {
-        name: "null",
-        email: "null",
-        role: "null",
-        status: "null",
+        name: "",
+        email: "",
+        role: "",
+        status: "",
         kycStatus: "PENDING",
       };
     }

@@ -16,23 +16,22 @@ const UserName = ({
 
   const { getUserById } = useUserCache();
 
+  // Handle directName prop and load cached user details as fallback
   useEffect(() => {
+    // 1. If directName is provided from API, use it directly and return to prevent stale LocalStorage cache overwrite
     if (directName) {
       setName((prev) => (prev === directName ? prev : directName));
-    } else if (id) {
-      async function getUserName() {
-        const userDetails = await getUserById(id);
-        setName(userDetails?.name || "");
-      }
-      getUserName();
-      // return;
+      return;
     }
 
     if (!id) return;
 
+    // 2. Fallback to async user cache lookup if no directName passed
     async function loadUser() {
       const user = await getUserById(id);
-      setName(user?.name || "");
+      if (user?.name) {
+        setName(user.name);
+      }
     }
 
     loadUser();
